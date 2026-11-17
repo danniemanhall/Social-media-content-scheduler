@@ -5,6 +5,7 @@ import { addLocalFile, getFile } from "../lib/localMedia";
 import type { MediaRef, Music, Slot, Status } from "../lib/types";
 import type { Calendar } from "../lib/useCalendar";
 import { MediaPicker } from "./MediaPicker";
+import { ReelEditor } from "./ReelEditor";
 import { kindOf } from "./Tile";
 
 const CAPTION_LIMIT = 2200;
@@ -164,6 +165,13 @@ export function SlotDrawer({ slot, cal, onClose }: { slot: Slot; cal: Calendar; 
             </div>
           )}
         </div>
+
+        {draft.format === "reel" && (
+          <div className="field">
+            <div className="label">Reel editor</div>
+            <ReelEditor slot={draft} save={save} />
+          </div>
+        )}
 
         <div className="field">
           <label htmlFor="caption">Caption</label>

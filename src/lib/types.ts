@@ -87,10 +87,47 @@ export interface Slot {
   updatedAt: string;
   /** Set by a scheduled Claude run when it answers "Ask Claude" or refreshes a caption. */
   claude?: ClaudeReply;
+  /** Reels: the edit plan the reel editor renders. */
+  storyboard?: Storyboard;
+  /** Reels: the last finished render saved to Drive. */
+  render?: ReelRender;
+}
+
+/** One cut in a reel. Times are in seconds of the source clip. */
+export interface ReelShot {
+  /** A MediaRef id from the slot's media. */
+  mediaId: string;
+  /** Where to start in a video. Ignored for photos. */
+  start: number;
+  /** How long the shot lasts in the finished reel. */
+  duration: number;
+  /** 1 = normal, 0.5 = half-speed slow motion. Videos only. */
+  speed: number;
+  /** On-screen words for this shot, short. */
+  text?: string;
+}
+
+export interface Storyboard {
+  shots: ReelShot[];
+  /** Branded end card: Roopip on warm ivory. */
+  endCard: boolean;
+  /** Line under the name on the end card. */
+  endText?: string;
+  grade: "warm" | "natural";
+  /** Who last set it up. */
+  by: "auto" | "claude" | "person";
+}
+
+export interface ReelRender {
+  at: string;
+  seconds: number;
+  name: string;
+  driveId?: string;
+  link?: string;
 }
 
 /** The slot fields Claude may change. Kept so its changes can be undone. */
-export type ClaudeFields = Pick<Slot, "title" | "prompt" | "shots" | "caption" | "hashtags" | "cta">;
+export type ClaudeFields = Pick<Slot, "title" | "prompt" | "shots" | "caption" | "hashtags" | "cta" | "storyboard">;
 
 export interface ClaudeReply {
   /** ISO time of the run. */
