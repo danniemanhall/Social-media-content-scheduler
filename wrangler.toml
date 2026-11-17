@@ -1,0 +1,12 @@
+name = "roopip-content-calendar"
+pages_build_output_dir = "dist"
+compatibility_date = "2024-12-01"
+
+# Shared calendar storage. Create it once with:
+#   npx wrangler d1 create roopip-calendar
+# then paste the database_id it prints below.
+[[d1_databases]]
+binding = "DB"
+database_name = "roopip-calendar"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+migrations_dir = "migrations"
