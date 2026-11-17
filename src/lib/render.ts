@@ -1,0 +1,99 @@
+import { FFmpeg, FFFSType } from "@ffmpeg/ffmpeg";
+import { fetchFile, toBlobURL } from "@ffmpeg/util";
+import { buildJob, isVideo, type JobInput, FONT_BODY, FONT_HEADING } from "./reel";
+import { downloadFile } from "./drive";
+import { getFile } from "./localMedia";
+import type { MediaRef, Storyboard } from "./types";
+
+/**
+ * Renders a storyboard to an MP4 in the browser with ffmpeg.wasm. The 32 MB
+ * ffmpeg core is too big for Cloudflare Pages, so it loads from a CDN the
+ * first time someone renders, and the browser caches it after that.
+ */
+const CORE_BASE = (import.meta.env.VITE_FFMPEG_CORE_BASE as string | undefined) ?? "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm";
+
+let loaded: Promise<FFmpeg> | null = null;
+
+function getFFmpeg(): Promise<FFmpeg> {
+  loaded ??= (async () => {
+    const ff = new FFmpeg();
+    await ff.load({
+      coreURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.js`, "text/javascript"),
+      wasmURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.wasm`, "application/wasm"),
+    });
+    await ff.createDir("fonts");
+    await ff.writeFile(FONT_HEADING, await fetchFile("/fonts/CormorantGaramond.ttf"));
+    await ff.writeFile(FONT_BODY, await fetchFile("/fonts/DMSans.ttf"));
+    return ff;
+  })().catch((e) => {
+    loaded = null;
+    throw e;
+  });
+  return loaded;
+}
+
+export interface Progress {
+  /** 0 to 1 */
+  value: number;
+  label: string;
+}
+
+async function blobFor(m: MediaRef): Promise<Blob> {
+  if (m.source === "drive") return downloadFile(m.id);
+  const b = await getFile(m.id);
+  if (!b) throw new Error(`"${m.name}" was added on another device. Open this post there to render, or add the file from Drive.`);
+  return b;
+}
+
+const ext = (m: MediaRef) => (m.name.match(/\.[a-z0-9]{2,5}$/i)?.[0] ?? (isVideo(m) ? ".mp4" : ".jpg")).toLowerCase();
+
+export async function renderReel(
+  sb: Storyboard,
+  media: MediaRef[],
+  music: Blob | null,
+  onProgress: (p: Progress) => void,
+): Promise<{ video: Blob; seconds: number }> {
+  onProgress({ value: 0, label: "Loading the video engine (first time takes a moment)…" });
+  const ff = await getFFmpeg();
+
+  const used = media.filter((m) => sb.shots.some((s) => s.mediaId === m.id));
+  const blobs: { name: string; data: Blob }[] = [];
+  const inputs: Record<string, JobInput> = {};
+  for (const [i, m] of used.entries()) {
+    onProgress({ value: 0.02 + (0.18 * i) / used.length, label: `Fetching ${m.name}…` });
+    const name = `m${i}${ext(m)}`;
+    blobs.push({ name, data: await blobFor(m) });
+    inputs[m.id] = { file: `/in/${name}`, kind: isVideo(m) ? "video" : "image" };
+  }
+  if (music) blobs.push({ name: "music.audio", data: music });
+
+  // Mount instead of copying, so long phone clips don't fill the browser's memory.
+  await ff.createDir("/in").catch(() => undefined);
+  await ff.mount(FFFSType.WORKERFS, { blobs }, "/in");
+  try {
+    const job = buildJob(sb, inputs, music ? "/in/music.audio" : undefined);
+    for (const [name, text] of Object.entries(job.texts)) await ff.writeFile(name, text);
+    const logs: string[] = [];
+    const onLog = ({ message }: { message: string }) => {
+      logs.push(message);
+      if (logs.length > 40) logs.shift();
+    };
+    ff.on("log", onLog);
+    try {
+      for (const [i, step] of job.steps.entries()) {
+        const what = i < sb.shots.length ? `Cutting shot ${i + 1} of ${sb.shots.length}` : i === job.steps.length - 1 ? "Finishing" : "Joining";
+        onProgress({ value: 0.2 + (0.78 * i) / job.steps.length, label: `${what}…` });
+        const code = await ff.exec(step);
+        if (code !== 0) throw new Error(`The video engine stopped (${what.toLowerCase()}). ${logs.slice(-3).join(" ")}`);
+      }
+    } finally {
+      ff.off("log", onLog);
+    }
+    const data = (await ff.readFile(job.output)) as Uint8Array;
+    for (const f of ["joined.mp4", job.output, ...job.steps.map((s) => s.at(-1)!)]) await ff.deleteFile(f).catch(() => undefined);
+    onProgress({ value: 1, label: "Done" });
+    return { video: new Blob([data], { type: "video/mp4" }), seconds: job.seconds };
+  } finally {
+    await ff.unmount("/in").catch(() => undefined);
+  }
+}

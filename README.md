@@ -4,7 +4,7 @@ One place for Roopip's Instagram and Facebook: every week is already planned wit
 
 **Default week:** 1 reel, 2 grid posts (a carousel and a single image, alternating days), and 3 story days, with an optional Sunday story.
 
-Phases 1 and 2 of the [plan](https://claude.ai/artifact/DEFeCBCvXBPbexWFkp5Fqk) are built: the pre-filled calendar, and Claude writing ideas and captions on a schedule. It runs entirely on free tiers.
+Phases 1 to 3 of the [plan](https://claude.ai/artifact/DEFeCBCvXBPbexWFkp5Fqk) are built: the pre-filled calendar, Claude writing ideas and captions on a schedule, and the reel editor. It runs entirely on free tiers.
 
 ## What's in it
 
@@ -76,7 +76,17 @@ npm run dev                 # UI only, saves to this browser
 
 Tick **Ask Claude to help with this one** on any post and say what you want in its notes (or leave them empty for a fresh caption). Claude checks about 7 AM, 12 PM and 8 PM, makes the change, and leaves a note on the post with an **Undo** button. The instructions those runs follow are in [`claude-runs/`](claude-runs/README.md).
 
+### Reel editor
+
+Every reel has a **Reel editor** in its post drawer.
+1. Add clips and photos.
+2. Click **Build a storyboard** for a first cut, or tick *Ask Claude* and Claude plans the cut on its next run, after looking at frames from Drive clips.
+3. Adjust each shot's start, length, speed and on-screen words, reorder or drop shots, and toggle the Roopip end card and warm colour grade.
+4. **Render reel** builds a 1080 x 1920 MP4 in the browser with ffmpeg.wasm. You get cuts, slow motion, slow push-ins on photos, the warm grade, on-screen words in Cormorant Garamond, the end card, and a royalty-free track you choose when the post's music is set to royalty-free.
+5. **Save to Drive and send for approval** puts the reel in a *Roopip reels* folder in your Drive and moves the post to *Ready for approval*.
+
+The ffmpeg core (32 MB) is too big for Cloudflare Pages, so it loads from jsDelivr on the first render and is cached after that. Fonts are in `public/fonts` (SIL Open Font License).
+
 ## Coming next
 
-- **Phase 3:** AI reel editing: shot picking, storyboard, rendering.
 - **Phase 4:** Auto-posting approved posts to Instagram and Facebook (reels set to *Instagram music* stay manual).
