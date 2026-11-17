@@ -25,6 +25,7 @@ export function Tile({ slot, onOpen, draggable }: { slot: Slot; onOpen: (s: Slot
       <span className="body">
         <span className="fmt">
           {FORMAT_LABEL[slot.format]} · {slot.time} {slot.locked && <span className="lock" aria-label="locked">🔒</span>}
+          {slot.askClaude && <span className="ask" title="Waiting for Claude">✦</span>}
         </span>
         <span className="title">{slot.title}</span>
         <span className={`status ${slot.status}`}>{STATUS_LABEL[slot.status]}</span>

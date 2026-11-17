@@ -1,6 +1,6 @@
 import { IDEAS } from "./ideas";
 import { PILLARS } from "./brand";
-import { addDays, monthOf, toUTC } from "./dates";
+import { addDays, monthOf, toUTC, weekStart } from "./dates";
 import type { Format, Idea, Slot, TemplateSlot } from "./types";
 
 /**
@@ -156,15 +156,54 @@ export function planWeek(weekStartISO: string, history: Slot[], opts: PlanOption
 }
 
 /** Swap a slot's idea for another of the same format, keeping date, time and media. */
-export function shuffleSlot(slot: Slot, history: Slot[], seed = String(Date.now())): Slot {
+export function shuffleSlot(slot: Slot, history: Slot[], seed = String(Date.now()), bank: Idea[] = IDEAS): Slot {
   const rand = rng(seed + slot.id);
   const weekIds = new Set(history.filter((s) => s.date.slice(0, 7) === slot.date.slice(0, 7)).map((s) => s.ideaId));
   weekIds.add(slot.ideaId);
-  const candidates = IDEAS.filter((i) => i.format === slot.format && !weekIds.has(i.id) && fits(i, monthOf(slot.date)));
-  const pool = candidates.length ? candidates : IDEAS.filter((i) => i.format === slot.format && i.id !== slot.ideaId);
-  const next = pool[Math.floor(rand() * pool.length)] ?? IDEAS.find((i) => i.id === slot.ideaId)!;
+  const candidates = bank.filter((i) => i.format === slot.format && !weekIds.has(i.id) && fits(i, monthOf(slot.date)));
+  const pool = candidates.length ? candidates : bank.filter((i) => i.format === slot.format && i.id !== slot.ideaId);
+  const next = pool[Math.floor(rand() * pool.length)] ?? bank.find((i) => i.id === slot.ideaId) ?? IDEAS.find((i) => i.format === slot.format)!;
   const fresh = slotFromIdea(next, slot.date, slot.time, slot.id);
   return { ...fresh, media: slot.media, music: slot.music, status: slot.media.length ? slot.status : "idea", updatedAt: new Date().toISOString() };
+}
+
+/**
+ * Plan every week from `from` to `to` that has never been planned and has no
+ * slots yet. Shared by the app and by Claude's monthly run, so both plan the
+ * same way.
+ * @returns the new slots and every week now counted as planned
+ */
+export function planRange(
+  from: string,
+  to: string,
+  existing: Slot[],
+  generated: Iterable<string>,
+  bank: Idea[],
+  thisWeek: string,
+): { fresh: Slot[]; newWeeks: string[] } {
+  const done = new Set(generated);
+  const all = [...existing];
+  const fresh: Slot[] = [];
+  const newWeeks: string[] = [];
+  for (let w = weekStart(from); w <= to; w = addDays(w, 7)) {
+    if (w < thisWeek || done.has(w)) continue;
+    newWeeks.push(w);
+    if (all.some((s) => s.date >= w && s.date <= addDays(w, 6))) continue;
+    const planned = planWeek(w, all, { ideas: bank });
+    all.push(...planned);
+    fresh.push(...planned);
+  }
+  return { fresh, newWeeks };
+}
+
+/** Settings key holding ideas Claude added on its monthly run. */
+export const EXTRA_IDEAS_KEY = "extraIdeas";
+
+/** The built-in bank plus Claude's ideas. A Claude idea with a built-in id is ignored. */
+export function ideaBank(extra: Idea[] | null | undefined): Idea[] {
+  if (!extra?.length) return IDEAS;
+  const ids = new Set(IDEAS.map((i) => i.id));
+  return [...IDEAS, ...extra.filter((i) => i && !ids.has(i.id) && i.format && i.title)];
 }
 
 export { PILLARS };

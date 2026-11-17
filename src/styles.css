@@ -206,3 +206,8 @@ table.ideas th { background: var(--paper); font-weight: 600; color: var(--muted)
   .weekview .day { min-height: 0; }
   .day .add { opacity: 1; }
 }
+
+.claude-note { background: #fff; border: 1px solid var(--line); border-left: 3px solid var(--olive); border-radius: 8px; padding: 10px 12px; margin-bottom: 16px; }
+.claude-note p { margin: 4px 0 8px; white-space: pre-wrap; }
+.claude-note .actions { margin: 0; padding: 0; border: 0; }
+.tile .ask { color: var(--olive); margin-left: 4px; }

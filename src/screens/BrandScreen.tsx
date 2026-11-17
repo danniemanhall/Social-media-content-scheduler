@@ -1,19 +1,20 @@
 import { useMemo, useState } from "react";
 import { BRAND, FORMAT_LABEL, PILLARS } from "../lib/brand";
 import { IDEAS } from "../lib/ideas";
-import type { Format } from "../lib/types";
+import type { Format, Idea } from "../lib/types";
 
-export function BrandScreen() {
+export function BrandScreen({ ideas: bank = IDEAS }: { ideas?: Idea[] }) {
+  const builtIn = useMemo(() => new Set(IDEAS.map((i) => i.id)), []);
   const [format, setFormat] = useState<Format | "all">("all");
   const [q, setQ] = useState("");
   const ideas = useMemo(
     () =>
-      IDEAS.filter(
+      bank.filter(
         (i) =>
           (format === "all" || i.format === format) &&
           (!q || `${i.title} ${i.prompt} ${i.product ?? ""} ${i.pillar}`.toLowerCase().includes(q.toLowerCase())),
       ),
-    [format, q],
+    [bank, format, q],
   );
 
   return (
@@ -69,7 +70,10 @@ export function BrandScreen() {
       <section className="section">
         <div className="section-head">
           <h2>Idea bank</h2>
-          <span className="hint">{IDEAS.length} ideas the calendar draws from</span>
+          <span className="hint">
+            {bank.length} ideas the calendar draws from
+            {bank.length > IDEAS.length && `, ${bank.length - IDEAS.length} added by Claude`}
+          </span>
           <span className="spacer" />
           <input type="search" placeholder="Search ideas" value={q} onChange={(e) => setQ(e.target.value)} className="btn" style={{ cursor: "text" }} />
           <div className="seg">
@@ -88,7 +92,7 @@ export function BrandScreen() {
             <tbody>
               {ideas.map((i) => (
                 <tr key={i.id}>
-                  <td><b>{i.title}</b><div style={{ color: "var(--muted)" }}>{i.prompt}</div></td>
+                  <td><b>{i.title}</b>{!builtIn.has(i.id) && <span className="chip" style={{ marginLeft: 6 }}>Claude</span>}<div style={{ color: "var(--muted)" }}>{i.prompt}</div></td>
                   <td>{FORMAT_LABEL[i.format]}</td>
                   <td>{i.pillar}</td>
                   <td>{i.product ?? "Any"}</td>

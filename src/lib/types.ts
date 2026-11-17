@@ -85,6 +85,20 @@ export interface Slot {
   askClaude: boolean;
   notes: string;
   updatedAt: string;
+  /** Set by a scheduled Claude run when it answers "Ask Claude" or refreshes a caption. */
+  claude?: ClaudeReply;
+}
+
+/** The slot fields Claude may change. Kept so its changes can be undone. */
+export type ClaudeFields = Pick<Slot, "title" | "prompt" | "shots" | "caption" | "hashtags" | "cta">;
+
+export interface ClaudeReply {
+  /** ISO time of the run. */
+  at: string;
+  /** What Claude did, in a sentence or two, for the person reading the slot. */
+  note: string;
+  /** The slot's fields before Claude changed them. Missing when Claude changed nothing. */
+  previous?: Partial<ClaudeFields>;
 }
 
 export interface TemplateSlot {
