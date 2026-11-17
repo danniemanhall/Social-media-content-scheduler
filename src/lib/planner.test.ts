@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planWeek, gridFormats, shuffleSlot, MIN_PILLARS_PER_WEEK } from "./planner";
+import { planWeek, planRange, ideaBank, gridFormats, shuffleSlot, MIN_PILLARS_PER_WEEK } from "./planner";
 import { addDays } from "./dates";
 import { IDEAS } from "./ideas";
 import type { Slot } from "./types";
@@ -83,5 +83,30 @@ describe("shuffleSlot", () => {
     expect(next.format).toBe(slot.format);
     expect(next.media).toHaveLength(1);
     expect(next.status).toBe("media");
+  });
+});
+
+describe("Claude's extra ideas", () => {
+  const extra = { ...IDEAS.find((i) => i.format === "reel")!, id: "claude-test-reel", title: "Claude reel", months: undefined };
+
+  it("adds new ideas and ignores ones that reuse a built-in id", () => {
+    const bank = ideaBank([extra, { ...IDEAS[0], title: "dupe" }]);
+    expect(bank).toHaveLength(IDEAS.length + 1);
+    expect(bank.find((i) => i.id === IDEAS[0].id)?.title).toBe(IDEAS[0].title);
+  });
+
+  it("can be shuffled into a slot", () => {
+    const reel = planWeek("2026-11-23", []).find((s) => s.format === "reel")!;
+    const onlyExtra = [extra, IDEAS.find((i) => i.id === reel.ideaId)!];
+    expect(shuffleSlot(reel, [reel], "s", onlyExtra).ideaId).toBe("claude-test-reel");
+  });
+});
+
+describe("planRange", () => {
+  it("skips past, already planned and already filled weeks", () => {
+    const filled = planWeek("2026-12-07", []);
+    const { fresh, newWeeks } = planRange("2026-11-30", "2026-12-27", filled, ["2026-12-14"], IDEAS, "2026-12-07");
+    expect(newWeeks).toEqual(["2026-12-07", "2026-12-21"]);
+    expect(new Set(fresh.map((s) => s.date.slice(0, 10) >= "2026-12-21"))).toEqual(new Set([true]));
   });
 });

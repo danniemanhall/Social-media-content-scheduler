@@ -4,7 +4,7 @@ One place for Roopip's Instagram and Facebook: every week is already planned wit
 
 **Default week:** 1 reel, 2 grid posts (a carousel and a single image, alternating days), and 3 story days, with an optional Sunday story.
 
-This is **Phase 1** of the [plan](https://claude.ai/artifact/DEFeCBCvXBPbexWFkp5Fqk): the pre-filled calendar. It runs entirely on free tiers.
+Phases 1 and 2 of the [plan](https://claude.ai/artifact/DEFeCBCvXBPbexWFkp5Fqk) are built: the pre-filled calendar, and Claude writing ideas and captions on a schedule. It runs entirely on free tiers.
 
 ## What's in it
 
@@ -20,6 +20,7 @@ This is **Phase 1** of the [plan](https://claude.ai/artifact/DEFeCBCvXBPbexWFkp5
 
 - `src/lib/ideas.ts` holds the idea bank (56 ideas across reels, carousels, posts and stories), written from the October 2026 plan and the product master sheet. Seasonal ideas (festive, winter, summer, Heritage Day, Mother's Day) only appear in their months.
 - `src/lib/planner.ts` plans each upcoming week the first time anyone opens it, then saves it so it never changes under you. Rules: at least 3 content pillars a week, no idea twice in a week, no idea repeated within 8 weeks while fresh ones remain, no product featured in two product posts in a row, and grid layouts alternate days week to week.
+- Claude's monthly run (the 22nd) plans next month, rewrites its captions for the dates, and adds new ideas to the bank. Claude's ideas are marked in **Brand & ideas**.
 - Status flow: Idea → Media added → Editing → Ready for approval → Approved → Scheduled → Posted. The social media manager moves posts to *Ready for approval*; Carli approves.
 
 ## Free hosting setup (one time, about 30 minutes)
@@ -71,8 +72,11 @@ npm run preview             # full app with a local database at http://localhost
 npm run dev                 # UI only, saves to this browser
 ```
 
+### Ask Claude
+
+Tick **Ask Claude to help with this one** on any post and say what you want in its notes (or leave them empty for a fresh caption). Claude checks about 7 AM, 12 PM and 8 PM, makes the change, and leaves a note on the post with an **Undo** button. The instructions those runs follow are in [`claude-runs/`](claude-runs/README.md).
+
 ## Coming next
 
-- **Phase 2:** Claude (through Daniel's Claude plan, on a schedule) fills next month's ideas and captions and answers posts marked *Ask Claude*.
 - **Phase 3:** AI reel editing: shot picking, storyboard, rendering.
 - **Phase 4:** Auto-posting approved posts to Instagram and Facebook (reels set to *Instagram music* stay manual).

@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { planWeek, shuffleSlot, slotFromIdea, COOLDOWN_WEEKS } from "./planner";
+import { planRange, shuffleSlot, slotFromIdea, ideaBank, COOLDOWN_WEEKS, EXTRA_IDEAS_KEY } from "./planner";
 import { addDays, todayISO, weekStart } from "./dates";
-import { IDEAS } from "./ideas";
 import type { Store } from "./store";
-import type { Format, Slot } from "./types";
+import type { ClaudeFields, Format, Idea, Slot } from "./types";
 
 const GENERATED_KEY = "generatedWeeks";
 
@@ -15,6 +14,7 @@ export function useCalendar(store: Store) {
   const [slots, setSlots] = useState<Record<string, Slot>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ideas, setIdeas] = useState<Idea[]>(() => ideaBank(null));
   const loadedRange = useRef<{ from: string; to: string } | null>(null);
   const thisWeek = weekStart(todayISO());
 
@@ -26,21 +26,10 @@ export function useCalendar(store: Store) {
         const histFrom = addDays(weekStart(from), -7 * COOLDOWN_WEEKS);
         const existing = await store.load(histFrom, to);
         const generated = new Set((await store.getSetting<string[]>(GENERATED_KEY)) ?? []);
-        const all = [...existing];
-        const fresh: Slot[] = [];
-        const newWeeks: string[] = [];
-        for (let w = weekStart(from); w <= to; w = addDays(w, 7)) {
-          if (w < thisWeek || generated.has(w)) continue;
-          const hasSlots = all.some((s) => s.date >= w && s.date <= addDays(w, 6));
-          if (hasSlots) {
-            newWeeks.push(w);
-            continue;
-          }
-          const planned = planWeek(w, all);
-          all.push(...planned);
-          fresh.push(...planned);
-          newWeeks.push(w);
-        }
+        const bank = ideaBank(await store.getSetting<Idea[]>(EXTRA_IDEAS_KEY));
+        setIdeas(bank);
+        const { fresh, newWeeks } = planRange(from, to, existing, generated, bank, thisWeek);
+        const all = [...existing, ...fresh];
         if (fresh.length) await store.save(fresh);
         if (newWeeks.length) await store.setSetting(GENERATED_KEY, [...generated, ...newWeeks].sort());
         setSlots((prev) => {
@@ -91,14 +80,14 @@ export function useCalendar(store: Store) {
   const add = useCallback(
     async (date: string, format: Format) => {
       const taken = new Set(all.filter((s) => s.date.slice(0, 7) === date.slice(0, 7)).map((s) => s.ideaId));
-      const options = IDEAS.filter((i) => i.format === format);
+      const options = ideas.filter((i) => i.format === format);
       const choice = options.find((i) => !taken.has(i.id)) ?? options[0];
       const time = format === "story" ? "08:00" : "18:30";
       const slot = slotFromIdea(choice, date, time, `${date}-${format}-${crypto.randomUUID().slice(0, 8)}`);
       await update(slot);
       return slot;
     },
-    [all, update],
+    [all, ideas, update],
   );
 
   const move = useCallback(
@@ -113,18 +102,30 @@ export function useCalendar(store: Store) {
     async (id: string) => {
       const s = slots[id];
       if (!s || s.locked) return s;
-      const next = shuffleSlot(s, all);
+      const next = shuffleSlot(s, all, undefined, ideas);
       await update(next);
       return next;
     },
-    [slots, all, update],
+    [slots, all, ideas, update],
+  );
+
+  /** Put back the fields Claude changed, and clear its note. */
+  const undoClaude = useCallback(
+    async (id: string) => {
+      const s = slots[id];
+      if (!s?.claude) return s;
+      const next: Slot = { ...s, ...(s.claude.previous as Partial<ClaudeFields>), claude: undefined };
+      await update(next);
+      return next;
+    },
+    [slots, update],
   );
 
   useEffect(() => {
     setSlots({});
   }, [store]);
 
-  return { slots: all, byId: slots, loading, error, ensureRange, update, remove, add, move, shuffle };
+  return { slots: all, byId: slots, ideas, loading, error, ensureRange, update, remove, add, move, shuffle, undoClaude };
 }
 
 export type Calendar = ReturnType<typeof useCalendar>;

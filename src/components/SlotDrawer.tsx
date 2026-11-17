@@ -70,6 +70,11 @@ export function SlotDrawer({ slot, cal, onClose }: { slot: Slot; cal: Calendar; 
     if (next) setDraft(next);
   };
 
+  const undoClaude = async () => {
+    const next = await cal.undoClaude(draft.id);
+    if (next) setDraft(next);
+  };
+
   const k = kindOf(draft);
 
   return (
@@ -87,6 +92,19 @@ export function SlotDrawer({ slot, cal, onClose }: { slot: Slot; cal: Calendar; 
           </div>
           <button className="btn ghost" onClick={onClose} aria-label="Close">✕</button>
         </header>
+
+        {draft.claude && (
+          <div className="claude-note" role="note">
+            <div className="label">✦ Claude, {new Date(draft.claude.at).toLocaleString("en-ZA", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
+            <p>{draft.claude.note}</p>
+            <div className="actions">
+              {draft.claude.previous && Object.keys(draft.claude.previous).length > 0 && (
+                <button className="btn small" type="button" onClick={undoClaude}>Undo Claude's changes</button>
+              )}
+              <button className="btn small ghost" type="button" onClick={() => save({ claude: undefined })}>Dismiss</button>
+            </div>
+          </div>
+        )}
 
         <div className="field">
           <div className="label">The idea</div>
@@ -213,13 +231,13 @@ export function SlotDrawer({ slot, cal, onClose }: { slot: Slot; cal: Calendar; 
             Ask Claude to help with this one
           </label>
           <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
-            Claude picks these up on its next scheduled run (coming in Phase 2). Add what you want in the notes.
+            Claude checks at about 7 AM, 12 PM and 8 PM. Say what you want in the notes, for example "make the caption shorter" or "write this around the new olive placemats". With no notes, Claude rewrites the caption, hashtags and call to action.
           </div>
         </div>
 
         <div className="field">
           <label htmlFor="notes">Notes</label>
-          <textarea id="notes" style={{ minHeight: 70 }} value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} onBlur={() => save({ notes: draft.notes })} />
+          <textarea id="notes" style={{ minHeight: 70 }} placeholder={draft.askClaude ? "What should Claude do?" : ""} value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} onBlur={() => save({ notes: draft.notes })} />
         </div>
 
         <div className="actions">

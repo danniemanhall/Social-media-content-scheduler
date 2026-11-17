@@ -71,7 +71,7 @@ function Shell({ store, email }: { store: Store; email: string | null }) {
         {tab === "overview" && <Overview cal={cal} onOpen={open} />}
         {tab === "calendar" && <CalendarScreen cal={cal} onOpen={open} />}
         {tab === "media" && <MediaLibrary />}
-        {tab === "brand" && <BrandScreen />}
+        {tab === "brand" && <BrandScreen ideas={cal.ideas} />}
       </main>
       {openSlot && <SlotDrawer slot={openSlot} cal={cal} onClose={() => setOpenId(null)} />}
     </>
