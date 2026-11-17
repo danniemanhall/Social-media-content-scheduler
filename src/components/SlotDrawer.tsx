@@ -1,0 +1,255 @@
+import { useEffect, useRef, useState, type DragEvent } from "react";
+import { FORMAT_LABEL, PILLARS, STATUS_LABEL, STATUS_ORDER } from "../lib/brand";
+import { checkMedia } from "../lib/media";
+import { addLocalFile, getFile } from "../lib/localMedia";
+import type { MediaRef, Music, Slot, Status } from "../lib/types";
+import type { Calendar } from "../lib/useCalendar";
+import { MediaPicker } from "./MediaPicker";
+import { kindOf } from "./Tile";
+
+const CAPTION_LIMIT = 2200;
+const HASHTAG_LIMIT = 30;
+
+export function SlotDrawer({ slot, cal, onClose }: { slot: Slot; cal: Calendar; onClose: () => void }) {
+  const [draft, setDraft] = useState<Slot>(slot);
+  const [over, setOver] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => setDraft(slot), [slot]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const save = (patch: Partial<Slot>) => {
+    const next = { ...draft, ...patch };
+    if (patch.media && next.status === "idea" && next.media.length) next.status = "media";
+    setDraft(next);
+    void cal.update(next);
+  };
+
+  const addFiles = async (files: FileList | File[]) => {
+    setBusy(true);
+    try {
+      const refs: MediaRef[] = [];
+      for (const f of Array.from(files)) {
+        if (f.type.startsWith("image/") || f.type.startsWith("video/")) refs.push(await addLocalFile(f));
+      }
+      if (refs.length) save({ media: [...draft.media, ...refs] });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onDrop = (e: DragEvent) => {
+    e.preventDefault();
+    setOver(false);
+    if (e.dataTransfer.files.length) void addFiles(e.dataTransfer.files);
+  };
+
+  const openMedia = async (m: MediaRef) => {
+    if (m.source === "drive" && m.link) return window.open(m.link, "_blank", "noopener");
+    const blob = await getFile(m.id);
+    if (blob) window.open(URL.createObjectURL(blob), "_blank", "noopener");
+    else alert("The original file is on the device it was added from.");
+  };
+
+  const fullCaption = [draft.caption, draft.cta, draft.hashtags.join(" ")].filter(Boolean).join("\n\n");
+  const copyCaption = async () => {
+    await navigator.clipboard.writeText(fullCaption);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  const shuffle = async () => {
+    const next = await cal.shuffle(draft.id);
+    if (next) setDraft(next);
+  };
+
+  const k = kindOf(draft);
+
+  return (
+    <>
+      <div className="scrim" onClick={onClose} />
+      <aside className="drawer" role="dialog" aria-label={draft.title}>
+        <header>
+          <div style={{ flex: 1 }}>
+            <h2>{draft.title}</h2>
+            <div className="chips">
+              <span className={`chip fmt ${k}`}>{FORMAT_LABEL[draft.format]}</span>
+              <span className="chip">{draft.pillar}</span>
+              {draft.product && <span className="chip">{draft.product}</span>}
+            </div>
+          </div>
+          <button className="btn ghost" onClick={onClose} aria-label="Close">✕</button>
+        </header>
+
+        <div className="field">
+          <div className="label">The idea</div>
+          <div className="prompt">{draft.prompt}</div>
+        </div>
+
+        <div className="field">
+          <div className="label">Shot list</div>
+          <ul className="shots">
+            {draft.shots.map((s, i) => (
+              <li key={i}>
+                <input type="checkbox" id={`shot-${i}`} />
+                <label htmlFor={`shot-${i}`}>{s}</label>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="field">
+          <div className="label">Photos and videos</div>
+          <div
+            className={`dropzone ${over ? "over" : ""}`}
+            onDragOver={(e) => { e.preventDefault(); setOver(true); }}
+            onDragLeave={() => setOver(false)}
+            onDrop={onDrop}
+          >
+            {busy ? "Adding…" : (
+              <>
+                Drop files here, or{" "}
+                <button className="btn small" type="button" onClick={() => setPicking(true)}>Choose from Drive</button>{" "}
+                <button className="btn small" type="button" onClick={() => fileInput.current?.click()}>Upload</button>
+              </>
+            )}
+            <input ref={fileInput} type="file" accept="image/*,video/*" multiple hidden onChange={(e) => e.target.files && addFiles(e.target.files)} />
+            <div style={{ fontSize: 12, marginTop: 6 }}>
+              {k === "grid" ? "Grid: portrait 4:5 works best." : "Vertical 9:16 for reels and stories."}
+            </div>
+          </div>
+          {draft.media.length > 0 && (
+            <div className="media-list">
+              {draft.media.map((m) => {
+                const check = m.width && m.height ? checkMedia(draft.format, m.width, m.height, m.durationSec) : null;
+                return (
+                  <div className="media-item" key={m.id}>
+                    <button type="button" className="img" style={{ backgroundImage: m.thumbnail ? `url("${m.thumbnail}")` : undefined, border: 0, width: "100%" }} onClick={() => openMedia(m)}>
+                      {!m.thumbnail && (m.mimeType.startsWith("video/") ? "▶" : "◻")}
+                    </button>
+                    <div className="meta">
+                      <div title={m.name} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</div>
+                      {check && <div className={check.ok ? "ok" : "bad"}>{check.message}</div>}
+                      {m.source === "local" && <div style={{ color: "var(--muted)" }}>Original on this device</div>}
+                      <button type="button" className="rm" onClick={() => save({ media: draft.media.filter((x) => x.id !== m.id) })}>Remove</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="field">
+          <label htmlFor="caption">Caption</label>
+          <textarea id="caption" value={draft.caption} onChange={(e) => setDraft({ ...draft, caption: e.target.value })} onBlur={() => save({ caption: draft.caption })} />
+          <div className={`counter ${fullCaption.length > CAPTION_LIMIT ? "over" : ""}`}>{fullCaption.length} / {CAPTION_LIMIT} with CTA and hashtags</div>
+        </div>
+        <div className="field">
+          <label htmlFor="cta">Call to action</label>
+          <input id="cta" type="text" value={draft.cta} onChange={(e) => setDraft({ ...draft, cta: e.target.value })} onBlur={() => save({ cta: draft.cta })} />
+        </div>
+        <div className="field">
+          <label htmlFor="tags">Hashtags</label>
+          <input
+            id="tags"
+            type="text"
+            value={draft.hashtags.join(" ")}
+            onChange={(e) => setDraft({ ...draft, hashtags: e.target.value.split(/\s+/).filter(Boolean) })}
+            onBlur={() => save({ hashtags: draft.hashtags.map((h) => (h.startsWith("#") ? h : `#${h}`)) })}
+          />
+          <div className={`counter ${draft.hashtags.length > HASHTAG_LIMIT ? "over" : ""}`}>{draft.hashtags.length} / {HASHTAG_LIMIT}</div>
+        </div>
+
+        <div className="row">
+          <div className="field">
+            <label htmlFor="date">Date</label>
+            <input id="date" type="date" value={draft.date} onChange={(e) => e.target.value && save({ date: e.target.value })} />
+          </div>
+          <div className="field">
+            <label htmlFor="time">Time</label>
+            <input id="time" type="time" value={draft.time} onChange={(e) => save({ time: e.target.value })} />
+          </div>
+        </div>
+
+        <div className="row">
+          <div className="field">
+            <label htmlFor="status">Status</label>
+            <select id="status" value={draft.status} onChange={(e) => save({ status: e.target.value as Status })}>
+              {STATUS_ORDER.map((s) => (
+                <option key={s} value={s}>{STATUS_LABEL[s]}</option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="pillar">Pillar</label>
+            <select id="pillar" value={draft.pillar} onChange={(e) => save({ pillar: e.target.value as Slot["pillar"] })}>
+              {PILLARS.map((p) => <option key={p}>{p}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {draft.format === "reel" && (
+          <div className="field">
+            <label htmlFor="music">Music</label>
+            <select id="music" value={draft.music} onChange={(e) => save({ music: e.target.value as Music })}>
+              <option value="royalty-free">Royalty-free track baked in (auto-posts)</option>
+              <option value="instagram">Instagram music (I'll post it by hand)</option>
+              <option value="none">No music</option>
+            </select>
+          </div>
+        )}
+
+        <div className="field">
+          <label className="toggle" htmlFor="ask">
+            <input id="ask" type="checkbox" checked={draft.askClaude} onChange={(e) => save({ askClaude: e.target.checked })} />
+            Ask Claude to help with this one
+          </label>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+            Claude picks these up on its next scheduled run (coming in Phase 2). Add what you want in the notes.
+          </div>
+        </div>
+
+        <div className="field">
+          <label htmlFor="notes">Notes</label>
+          <textarea id="notes" style={{ minHeight: 70 }} value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} onBlur={() => save({ notes: draft.notes })} />
+        </div>
+
+        <div className="actions">
+          <button className="btn primary" type="button" onClick={copyCaption}>{copied ? "Copied" : "Copy caption"}</button>
+          <button className="btn" type="button" onClick={shuffle} disabled={draft.locked}>Give me another idea</button>
+          <button className="btn" type="button" onClick={() => save({ locked: !draft.locked })}>{draft.locked ? "Unlock" : "Lock this idea"}</button>
+          <span className="spacer" />
+          <button
+            className="btn danger"
+            type="button"
+            onClick={() => {
+              if (confirm("Remove this slot from the calendar?")) {
+                void cal.remove(draft.id);
+                onClose();
+              }
+            }}
+          >
+            Remove slot
+          </button>
+        </div>
+      </aside>
+      {picking && (
+        <MediaPicker
+          onClose={() => setPicking(false)}
+          onPick={(items) => {
+            setPicking(false);
+            save({ media: [...draft.media, ...items.filter((i) => !draft.media.some((m) => m.id === i.id))] });
+          }}
+        />
+      )}
+    </>
+  );
+}
