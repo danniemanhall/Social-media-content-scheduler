@@ -2,11 +2,11 @@ name = "roopip-content-calendar"
 pages_build_output_dir = "dist"
 compatibility_date = "2024-12-01"
 
-# Shared calendar storage (created 17 Nov 2026, schema applied). To recreate:
+# Shared calendar storage in the Roopip Cloudflare account (created 17 Nov 2026, schema applied). To recreate:
 #   npx wrangler d1 create roopip-calendar
 # then paste the database_id it prints below.
 [[d1_databases]]
 binding = "DB"
 database_name = "roopip-calendar"
-database_id = "5c4db30a-87d5-4179-8a10-8c39888321e3"
+database_id = "9fe1bca5-d54d-4e43-bf03-262cbb32a9b0"
 migrations_dir = "migrations"
