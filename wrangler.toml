@@ -10,3 +10,6 @@ binding = "DB"
 database_name = "roopip-calendar"
 database_id = "9fe1bca5-d54d-4e43-bf03-262cbb32a9b0"
 migrations_dir = "migrations"
+
+# Phase 4: the R2 outbox binding (OUTBOX) and its public URL (OUTBOX_PUBLIC_URL)
+# are added here once R2 is enabled on the Roopip account. See docs/meta-setup.md.

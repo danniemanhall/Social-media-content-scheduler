@@ -91,6 +91,28 @@ export interface Slot {
   storyboard?: Storyboard;
   /** Reels: the last finished render saved to Drive. */
   render?: ReelRender;
+  /** Set when the post is handed to the publisher (status "scheduled"). */
+  publish?: Publish;
+}
+
+export interface OutboxFile {
+  /** Object key in the R2 outbox. */
+  key: string;
+  /** Public URL Meta fetches the file from. */
+  url: string;
+  type: "image" | "video";
+}
+
+/** Progress of one post through the publisher. */
+export interface Publish {
+  files: OutboxFile[];
+  queuedAt: string;
+  queuedBy?: string;
+  ig?: { containerId?: string; mediaId?: string; permalink?: string };
+  fb?: { postId?: string; skipped?: string };
+  attempts?: number;
+  error?: string;
+  postedAt?: string;
 }
 
 /** One cut in a reel. Times are in seconds of the source clip. */

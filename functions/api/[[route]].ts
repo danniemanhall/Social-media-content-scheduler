@@ -5,7 +5,14 @@
  */
 interface Env {
   DB: D1Database;
+  /** R2 bucket Meta fetches post files from. Optional until Phase 4 is set up. */
+  OUTBOX?: R2Bucket;
+  /** Public base URL of the outbox bucket, e.g. https://pub-xxxx.r2.dev */
+  OUTBOX_PUBLIC_URL?: string;
 }
+
+const OUTBOX_KEY = /^outbox\/([\w-]{1,120}\.(?:jpg|mp4))$/;
+const MAX_UPLOAD = 95 * 1024 * 1024;
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -34,6 +41,23 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params }) =>
   try {
     if (route === "health") return json({ ok: true, db: !!env.DB });
     if (route === "me") return json({ email: user || null });
+
+    if (route === "outbox" && request.method === "GET") {
+      return json({ ready: !!env.OUTBOX && !!env.OUTBOX_PUBLIC_URL });
+    }
+    const box = route.match(OUTBOX_KEY);
+    if (box && request.method === "PUT") {
+      if (!env.OUTBOX || !env.OUTBOX_PUBLIC_URL) return json({ error: "Auto-posting isn't set up yet." }, 503);
+      const size = Number(request.headers.get("content-length") ?? 0);
+      if (size > MAX_UPLOAD) return json({ error: "File is too big to hand to Meta (95 MB at most)." }, 413);
+      const type = box[1].endsWith(".mp4") ? "video/mp4" : "image/jpeg";
+      await env.OUTBOX.put(box[1], request.body, { httpMetadata: { contentType: type } });
+      return json({ key: box[1], url: `${env.OUTBOX_PUBLIC_URL.replace(/\/$/, "")}/${box[1]}` });
+    }
+    if (box && request.method === "DELETE") {
+      if (env.OUTBOX) await env.OUTBOX.delete(box[1]);
+      return json({ deleted: true });
+    }
 
     if (route === "slots" && request.method === "GET") {
       const from = url.searchParams.get("from") ?? "";
