@@ -11,5 +11,11 @@ database_name = "roopip-calendar"
 database_id = "9fe1bca5-d54d-4e43-bf03-262cbb32a9b0"
 migrations_dir = "migrations"
 
-# Phase 4: the R2 outbox binding (OUTBOX) and its public URL (OUTBOX_PUBLIC_URL)
-# are added here once R2 is enabled on the Roopip account. See docs/meta-setup.md.
+# Phase 4: files waiting to be posted. Meta fetches them from the public r2.dev URL;
+# the publisher deletes them once posted, and a bucket rule deletes anything older than 3 days.
+[[r2_buckets]]
+binding = "OUTBOX"
+bucket_name = "roopip-outbox"
+
+[vars]
+OUTBOX_PUBLIC_URL = "https://pub-d5c113d93d654a2b8144da66e2de900e.r2.dev"
