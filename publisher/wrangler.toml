@@ -1,0 +1,18 @@
+# The Meta publisher: runs every 15 minutes and posts scheduled slots that are due.
+# Secrets (set in the dashboard or with `wrangler secret put`): META_TOKEN, IG_USER_ID, FB_PAGE_ID.
+name = "roopip-publisher"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+workers_dev = false
+
+[triggers]
+crons = ["*/15 * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "roopip-calendar"
+database_id = "9fe1bca5-d54d-4e43-bf03-262cbb32a9b0"
+
+[[r2_buckets]]
+binding = "OUTBOX"
+bucket_name = "roopip-outbox"

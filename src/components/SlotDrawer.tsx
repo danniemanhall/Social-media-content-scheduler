@@ -6,6 +6,7 @@ import type { MediaRef, Music, Slot, Status } from "../lib/types";
 import type { Calendar } from "../lib/useCalendar";
 import { MediaPicker } from "./MediaPicker";
 import { ReelEditor } from "./ReelEditor";
+import { PostingPanel } from "./PostingPanel";
 import { kindOf } from "./Tile";
 
 const CAPTION_LIMIT = 2200;
@@ -230,6 +231,13 @@ export function SlotDrawer({ slot, cal, onClose }: { slot: Slot; cal: Calendar; 
               <option value="instagram">Instagram music (I'll post it by hand)</option>
               <option value="none">No music</option>
             </select>
+          </div>
+        )}
+
+        {(["approved", "scheduled", "posted"].includes(draft.status) || draft.publish) && (
+          <div className="field">
+            <div className="label">Posting</div>
+            <PostingPanel slot={draft} save={save} />
           </div>
         )}
 

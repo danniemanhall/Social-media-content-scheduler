@@ -4,7 +4,7 @@ One place for Roopip's Instagram and Facebook: every week is already planned wit
 
 **Default week:** 1 reel, 2 grid posts (a carousel and a single image, alternating days), and 3 story days, with an optional Sunday story.
 
-Phases 1 to 3 of the [plan](https://claude.ai/artifact/DEFeCBCvXBPbexWFkp5Fqk) are built: the pre-filled calendar, Claude writing ideas and captions on a schedule, and the reel editor. It runs entirely on free tiers.
+All four phases of the [plan](https://claude.ai/artifact/DEFeCBCvXBPbexWFkp5Fqk) are built: the pre-filled calendar, Claude writing ideas and captions on a schedule, the reel editor, and auto-posting to Instagram and Facebook. It runs entirely on free tiers.
 
 ## What's in it
 
@@ -87,6 +87,13 @@ Every reel has a **Reel editor** in its post drawer.
 
 The ffmpeg core (32 MB) is too big for Cloudflare Pages, so it loads from jsDelivr on the first render and is cached after that. Fonts are in `public/fonts` (SIL Open Font License).
 
-## Coming next
+### Auto-posting
 
-- **Phase 4:** Auto-posting approved posts to Instagram and Facebook (reels set to *Instagram music* stay manual).
+Approved posts get a **Schedule for …** button. It hands the post's files to an R2 outbox. The `roopip-publisher` Worker (`publisher/`) runs every 15 minutes and posts what's due through the Meta Graph API:
+- Photos and carousels go to Instagram and the Facebook Page.
+- Reels go to Instagram as reels and to Facebook as a video.
+- Stories go to Instagram only.
+
+The post then moves to *Posted*, with a link. Reels set to *Instagram music* are never auto-posted. One-time setup: [docs/meta-setup.md](docs/meta-setup.md).
+
+Deploying the publisher: `npm run publisher:build`, then `npx wrangler deploy -c publisher/wrangler.toml`. It is also deployed through the Cloudflare API.
