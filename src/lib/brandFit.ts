@@ -495,3 +495,26 @@ export function lastUsedMap(slots: Slot[], exceptId?: string): Record<string, st
   }
   return map;
 }
+
+/**
+ * Photos for a post's B-roll video: only real-setting shots (lifestyle, plus
+ * making-of or close-ups when the idea asks for those), never studio
+ * packshots, ranked by how well they fit the idea.
+ */
+export function pickBrollPhotos(
+  slot: Pick<Slot, "id" | "format" | "pillar" | "product" | "title" | "media"> & Partial<Pick<Slot, "prompt" | "shots">>,
+  library: IndexedMedia[],
+  looks: Record<string, Look | undefined>,
+  lastUsed: Record<string, string | undefined>,
+  today: string,
+  tags: Record<string, MediaTags | undefined> = {},
+  count = 5,
+): Suggestion[] {
+  const wanted = sceneForSlot(slot);
+  const allowed = new Set<Scene>(["lifestyle"]);
+  if (wanted && wanted !== "product") allowed.add(wanted);
+  const photos = library.filter((m) => m.mimeType.startsWith("image/"));
+  return suggestMedia({ ...slot, format: "reel", media: [] }, photos, looks, lastUsed, today, photos.length, tags)
+    .filter((s) => s.scene && allowed.has(s.scene))
+    .slice(0, count);
+}

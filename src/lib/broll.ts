@@ -72,3 +72,36 @@ export function brollName(photoName: string, move: BrollMove) {
   const base = photoName.replace(/\.[a-z0-9]+$/i, "").slice(0, 60);
   return `${base} - ${BROLL_MOVES[move].label.toLowerCase()}.mp4`.replace(/[\\/:*?"<>|]/g, "-");
 }
+
+/** Seconds each photo stays on screen in a B-roll video for a post. */
+export const BROLL_VIDEO_SHOT = 3.5;
+/** How many photos a B-roll video for a post uses. */
+export const BROLL_VIDEO_PHOTOS = 5;
+
+/**
+ * A camera move for each photo, so the cuts feel like real footage: wide photos
+ * pan, the rest alternate push in, close-up and pull back, and no move repeats
+ * straight after itself.
+ */
+export function brollPlan<T extends { width?: number; height?: number }>(photos: T[]): { photo: T; move: BrollMove }[] {
+  const cycle: BrollMove[] = ["push", "detail", "pull"];
+  let c = 0;
+  let last: BrollMove | null = null;
+  return photos.map((photo) => {
+    const wide = !!photo.width && !!photo.height && photo.width / photo.height > 1.1;
+    let move: BrollMove = wide && last !== "pan" ? "pan" : cycle[c++ % cycle.length];
+    if (move === last) move = cycle[c++ % cycle.length];
+    last = move;
+    return { photo, move };
+  });
+}
+
+/** ffmpeg arguments that join same-format clips (listed in a concat file) without re-encoding. */
+export function joinArgs(listFile: string, output: string): string[] {
+  return ["-y", "-f", "concat", "-safe", "0", "-i", listFile, "-c", "copy", "-movflags", "+faststart", output];
+}
+
+/** A file name for a post's B-roll video. */
+export function brollVideoName(title: string) {
+  return `${(title || "Roopip").slice(0, 60)} - b-roll.mp4`.replace(/[\\/:*?"<>|]/g, "-");
+}

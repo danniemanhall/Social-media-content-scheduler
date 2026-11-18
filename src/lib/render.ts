@@ -2,7 +2,7 @@ import { FFmpeg, FFFSType } from "@ffmpeg/ffmpeg";
 import { fetchFile, toBlobURL } from "@ffmpeg/util";
 import { buildJob, isVideo, type JobInput, FONT_BODY, FONT_HEADING, LOGO_FILE } from "./reel";
 import { downloadFile } from "./drive";
-import { BROLL_MOVES, brollArgs, type BrollMove } from "./broll";
+import { BROLL_MOVES, BROLL_VIDEO_SHOT, brollArgs, joinArgs, type BrollMove } from "./broll";
 import { getFile } from "./localMedia";
 import type { MediaRef, Storyboard } from "./types";
 
@@ -133,4 +133,44 @@ export async function renderBroll(photo: MediaRef, moves: BrollMove[], onProgres
   }
   onProgress({ value: 1, label: "Done" });
   return out;
+}
+
+/**
+ * One B-roll video for a post: a short handheld-style shot of each photo, in
+ * order, joined with straight cuts like real footage. Silent, 1080 x 1920.
+ */
+export async function renderBrollVideo(shots: { photo: MediaRef; move: BrollMove }[], onProgress: (p: Progress) => void): Promise<Blob> {
+  onProgress({ value: 0, label: "Loading the video engine (first time takes a moment)…" });
+  const ff = await getFFmpeg();
+  const logs: string[] = [];
+  const onLog = ({ message }: { message: string }) => {
+    logs.push(message);
+    if (logs.length > 40) logs.shift();
+  };
+  ff.on("log", onLog);
+  const files: string[] = [];
+  try {
+    for (const [i, { photo, move }] of shots.entries()) {
+      const step = 0.92 / shots.length;
+      onProgress({ value: 0.03 + step * i, label: `Fetching photo ${i + 1} of ${shots.length}…` });
+      const input = `bv-in-${i}${ext(photo)}`;
+      await ff.writeFile(input, new Uint8Array(await (await blobFor(photo)).arrayBuffer()));
+      onProgress({ value: 0.03 + step * (i + 0.2), label: `Filming shot ${i + 1} of ${shots.length} (${BROLL_MOVES[move].label.toLowerCase()})…` });
+      const out = `bv-${i}.mp4`;
+      const code = await ff.exec(brollArgs(input, move, out, BROLL_VIDEO_SHOT));
+      await ff.deleteFile(input).catch(() => undefined);
+      if (code !== 0) throw new Error(`The video engine stopped on ${photo.name}. ${logs.slice(-3).join(" ")}`);
+      files.push(out);
+    }
+    onProgress({ value: 0.96, label: "Joining the shots…" });
+    await ff.writeFile("bv-list.txt", new TextEncoder().encode(files.map((f) => `file '${f}'`).join("\n")));
+    const code = await ff.exec(joinArgs("bv-list.txt", "bv-final.mp4"));
+    if (code !== 0) throw new Error(`Couldn't join the shots. ${logs.slice(-3).join(" ")}`);
+    const data = (await ff.readFile("bv-final.mp4")) as Uint8Array;
+    onProgress({ value: 1, label: "Done" });
+    return new Blob([data], { type: "video/mp4" });
+  } finally {
+    ff.off("log", onLog);
+    for (const f of [...files, "bv-list.txt", "bv-final.mp4"]) await ff.deleteFile(f).catch(() => undefined);
+  }
 }

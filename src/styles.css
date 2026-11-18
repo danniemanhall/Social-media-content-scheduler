@@ -302,3 +302,7 @@ a.btn { text-decoration: none; }
 .video-pick .mthumb { aspect-ratio: 4 / 5; }
 .suggest-item .seen { font-size: 12px; color: var(--espresso, #332a22); line-height: 1.35; }
 .suggest-item .video-btn { background: var(--paper); }
+.bv-shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+.bv-shot { display: grid; gap: 4px; align-content: start; }
+.bv-shot .mthumb { aspect-ratio: 9 / 16; width: 100%; object-fit: cover; border-radius: 6px; }
+.bv-shot .seen { font-size: 12px; }

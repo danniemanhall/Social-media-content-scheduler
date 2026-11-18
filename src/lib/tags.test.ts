@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { suggestMedia, type IndexedMedia } from "./brandFit";
+import { pickBrollPhotos, suggestMedia, type IndexedMedia } from "./brandFit";
 import { ideaTerms, type MediaTags } from "./tags";
 import type { Slot } from "./types";
 
@@ -37,5 +37,22 @@ describe("tag matching", () => {
   it("finds hands at work for a making-of idea", () => {
     const got = suggestMedia(slot("From rope to bowl", "Hands coiling rope in the workshop", [], { pillar: "Craftsmanship" }), lib, {}, {}, "2026-12-01", 5, tags);
     expect(got[0].media.id).toBe("hands");
+  });
+});
+
+describe("pickBrollPhotos", () => {
+  it("uses only real-setting photos, best fit first, never the studio packshot", () => {
+    const got = pickBrollPhotos(slot("Sunday lunch", "A set dining table with placemats", [], { pillar: "Lifestyle" }), lib, {}, {}, "2026-12-01", tags);
+    const ids = got.map((g) => g.media.id);
+    expect(ids[0]).toBe("table");
+    expect(ids).not.toContain("studio");
+    expect(ids).not.toContain("hands"); // a making-of shot doesn't belong in a lifestyle idea's B-roll
+    expect(ids).toContain("untagged"); // in the Lifestyle photos folder, so counted as lifestyle until Claude has seen it
+  });
+
+  it("allows making-of shots when the idea is about making", () => {
+    const got = pickBrollPhotos(slot("From rope to bowl", "Hands coiling rope in the workshop", [], { pillar: "Craftsmanship" }), lib, {}, {}, "2026-12-01", tags);
+    expect(got[0].media.id).toBe("hands");
+    expect(got.map((g) => g.media.id)).not.toContain("studio");
   });
 });
