@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { autoStoryboard, cleanStoryboard, isImage, isVideo, totalSeconds } from "../lib/reel";
 import type { Progress } from "../lib/render";
 import type { MediaRef, ReelShot, Slot, Storyboard } from "../lib/types";
+import { Thumb } from "./Thumb";
 
 const fmtS = (n: number) => `${Math.round(n * 10) / 10} s`;
 
@@ -99,7 +100,7 @@ export function ReelEditor({ slot, save }: { slot: Slot; save: (patch: Partial<S
               const video = isVideo(m);
               return (
                 <li key={`${s.mediaId}-${i}`} className="shot">
-                  <div className="thumb" style={{ backgroundImage: m.thumbnail ? `url("${m.thumbnail}")` : undefined }}>{!m.thumbnail && (video ? "▶" : "◻")}</div>
+                  <Thumb media={m} className="thumb mthumb" />
                   <div className="shot-body">
                     <div className="shot-name" title={m.name}>{i + 1}. {m.name}</div>
                     <div className="shot-fields">

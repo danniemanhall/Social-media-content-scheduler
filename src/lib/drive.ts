@@ -142,13 +142,15 @@ function toItem(f: DriveFile): DriveItem {
   const img = f.imageMediaMetadata;
   const vid = f.videoMediaMetadata;
   const rotated = img?.rotation === 1 || img?.rotation === 3;
+  const thumbnail = f.thumbnailLink?.replace(/=s\d+$/, "=s400");
+  if (thumbnail) thumbCache.set(f.id, { url: thumbnail, at: Date.now() });
   return {
     id: f.id,
     source: "drive",
     name: f.name,
     mimeType: f.mimeType,
     isFolder: f.mimeType === FOLDER,
-    thumbnail: f.thumbnailLink?.replace(/=s\d+$/, "=s400"),
+    thumbnail,
     link: f.webViewLink,
     width: (rotated ? img?.height : img?.width) ?? vid?.width,
     height: (rotated ? img?.width : img?.height) ?? vid?.height,
@@ -189,6 +191,27 @@ async function authed(url: string, init: RequestInit = {}) {
   const res = await fetch(url, { ...init, headers: { ...(init.headers ?? {}), authorization: `Bearer ${token!.value}` } });
   if (!res.ok) throw new Error(driveMessage(res.status, await res.text()));
   return res;
+}
+
+const thumbCache = new Map<string, { url: string | null; at: number }>();
+const THUMB_TTL = 50 * 60 * 1000;
+
+/**
+ * A current thumbnail link for a Drive file. Drive's thumbnail links stop
+ * working after a few hours, so links saved by an earlier scan can't be
+ * trusted; this asks Drive for a fresh one (cached for 50 minutes).
+ */
+export async function freshThumbnail(fileId: string): Promise<string | null> {
+  const hit = thumbCache.get(fileId);
+  if (hit && Date.now() - hit.at < THUMB_TTL) return hit.url;
+  if (!driveConnected()) return null;
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=thumbnailLink&supportsAllDrives=true`,
+    { headers: { authorization: `Bearer ${token!.value}` } },
+  );
+  const url = res.ok ? (((await res.json()) as { thumbnailLink?: string }).thumbnailLink?.replace(/=s\d+$/, "=s400") ?? null) : null;
+  thumbCache.set(fileId, { url, at: Date.now() });
+  return url;
 }
 
 /** Downloads a Drive file's contents, for rendering. */

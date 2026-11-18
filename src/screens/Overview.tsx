@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { DayCell } from "../components/DayCell";
+import { useThumbUrl } from "../components/Thumb";
 import { addDays, shortDate, todayISO, weekStart } from "../lib/dates";
 import type { Calendar } from "../lib/useCalendar";
 import type { Slot } from "../lib/types";
@@ -70,22 +71,25 @@ export function Overview({ cal, onOpen }: { cal: Calendar; onOpen: (s: Slot) => 
           {Array.from({ length: 9 }, (_, i) => {
             const s = gridPosts[i];
             if (!s) return <div key={i} className="ig-cell empty" />;
-            const thumb = s.media.find((m) => m.thumbnail)?.thumbnail;
-            return (
-              <button
-                key={s.id}
-                className={`ig-cell ${thumb ? "" : "empty"}`}
-                style={thumb ? { backgroundImage: `url("${thumb}")` } : undefined}
-                onClick={() => onOpen(s)}
-                title={`${shortDate(s.date)} · ${s.title}`}
-              >
-                {!thumb && `${shortDate(s.date)} · ${s.title}`}
-              </button>
-            );
+            return <IgCell key={s.id} slot={s} onOpen={onOpen} />;
           })}
         </div>
         <p className="ig-note">Newest top-left, the way your profile shows it. Check the colours flow and no two neighbours look the same.</p>
       </aside>
     </div>
+  );
+}
+
+function IgCell({ slot: s, onOpen }: { slot: Slot; onOpen: (s: Slot) => void }) {
+  const thumb = useThumbUrl(s.media.find((m) => m.thumbnail));
+  return (
+    <button
+      className={`ig-cell ${thumb ? "" : "empty"}`}
+      style={thumb ? { backgroundImage: `url("${thumb}")` } : undefined}
+      onClick={() => onOpen(s)}
+      title={`${shortDate(s.date)} · ${s.title}`}
+    >
+      {!thumb && `${shortDate(s.date)} · ${s.title}`}
+    </button>
   );
 }

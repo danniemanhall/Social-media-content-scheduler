@@ -65,7 +65,7 @@ const dist = (a: Lab, b: Lab) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2
  */
 const BRAND_TONES: Lab[] = [
   ...BRAND.palette.map((p) => p.hex),
-  "#FFFFFF", "#E9E4DA", "#D8CFC2", "#B9A58F", "#8C735E", "#5E4B3C", "#8A8F7A", "#4A4F3F", "#1F1A16",
+  "#E9E4DA", "#D8CFC2", "#B9A58F", "#8C735E", "#5E4B3C", "#8A8F7A", "#4A4F3F", "#1F1A16",
 ].map(labOf);
 
 function hueName(hex: string): string {
@@ -94,6 +94,8 @@ export function analysePixels(data: Uint8ClampedArray | number[]): Look {
   let n = 0;
   let sumL = 0;
   let sumWarm = 0;
+  let sumWarmBright = 0;
+  let nBright = 0;
   let sumSat = 0;
   for (let i = 0; i + 3 < data.length; i += 4) {
     if (data[i + 3] < 128) continue;
@@ -105,6 +107,12 @@ export function analysePixels(data: Uint8ClampedArray | number[]): Look {
     const min = Math.min(r, g, b);
     sumL += (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
     sumWarm += (r - b) / 255;
+    // The light's colour shows in the bright parts (backdrop, highlights),
+    // not in a navy or green product, so judge warmth there.
+    if (0.2126 * r + 0.7152 * g + 0.0722 * b > 140) {
+      sumWarmBright += (r - b) / 255;
+      nBright++;
+    }
     sumSat += max === 0 ? 0 : (max - min) / max;
     const key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
     const bk = buckets.get(key) ?? { n: 0, r: 0, g: 0, b: 0 };
@@ -138,7 +146,7 @@ export function analysePixels(data: Uint8ClampedArray | number[]): Look {
   return {
     colours,
     brightness: Math.round((sumL / n) * 100) / 100,
-    warmth: Math.round((sumWarm / n) * 100) / 100,
+    warmth: Math.round(((nBright > n * 0.15 ? sumWarmBright / nBright : sumWarm / n)) * 100) / 100,
     saturation: Math.round((sumSat / n) * 100) / 100,
   };
 }
@@ -147,40 +155,50 @@ export function analysePixels(data: Uint8ClampedArray | number[]): Look {
 export function brandFit(look: Look): Fit {
   if (!look.colours.length) return { score: 0, reasons: ["Couldn't read this image's colours."] };
   const reasons: string[] = [];
+  let score = 100;
 
-  let weighted = 0;
-  let total = 0;
-  const offBrand: { hex: string; share: number; d: number }[] = [];
+  // Muted product colours (navy, olive, charcoal, black rope) are Roopip's own
+  // products and always fine. What clashes is strong colour outside the warm
+  // neutral palette: bright props, coloured backdrops, filters.
+  let whiteShare = 0;
+  let offShare = 0;
+  const offNames = new Set<string>();
   for (const c of look.colours) {
     const lab = labOf(c.hex);
+    const chroma = Math.hypot(lab[1], lab[2]);
+    if (lab[0] > 92 && chroma < 6) {
+      whiteShare += c.share;
+      continue;
+    }
+    if (chroma < 12 || c.share < 0.06) continue;
     const d = Math.min(...BRAND_TONES.map((t) => dist(t, lab)));
-    weighted += d * c.share;
-    total += c.share;
-    if (d > 28 && c.share >= 0.06) offBrand.push({ ...c, d });
+    if (d > 22) {
+      offShare += c.share;
+      offNames.add(hueName(c.hex));
+    }
   }
-  const meanD = total ? weighted / total : 50;
-  // 12 or closer is spot on; 45 and beyond is a different colour world.
-  let score = 100 - Math.max(0, Math.min(100, ((meanD - 12) / 33) * 100)) * 0.6;
-
-  if (offBrand.length) {
-    const names = [...new Set(offBrand.map((c) => hueName(c.hex)))].slice(0, 2);
-    const pct = Math.round(offBrand.reduce((s, c) => s + c.share, 0) * 100);
-    reasons.push(`About ${pct}% of the image is ${names.join(" and ")}, which isn't in the Roopip palette.`);
+  if (offShare > 0) {
+    score -= Math.min(50, offShare * 110);
+    reasons.push(`About ${Math.round(offShare * 100)}% of the image is strong ${[...offNames].slice(0, 2).join(" and ")}, which isn't in the Roopip palette.`);
   }
   if (look.saturation > 0.42) {
     score -= Math.min(25, (look.saturation - 0.42) * 120);
     reasons.push("Colours are very bright and saturated. Roopip's look is soft and natural.");
   }
-  if (look.warmth < -0.02) {
-    score -= Math.min(20, (-0.02 - look.warmth) * 250);
+  if (look.warmth < -0.03) {
+    score -= Math.min(20, (-0.03 - look.warmth) * 250);
     reasons.push("The light is cool or blue. Roopip photos have warm, natural light.");
   }
   if (look.brightness < 0.22) {
     score -= 15;
     reasons.push("The image is very dark. Roopip photos are light and airy with soft shadows.");
-  } else if (look.brightness > 0.93) {
+  }
+  if (whiteShare > 0.85) {
+    score -= 12;
+    reasons.push("It's almost all white background, so it may look empty on the grid.");
+  } else if (whiteShare > 0.45) {
     score -= 8;
-    reasons.push("The image is nearly all white, so it may look washed out on the grid.");
+    reasons.push("Plain white studio background. Good for product posts; styled shots on linen or wood look warmer on the grid.");
   }
 
   return { score: Math.max(0, Math.min(100, Math.round(score))), reasons };
@@ -277,7 +295,6 @@ export function suggestMedia(
     const look = looks[m.id];
     const fit = look ? brandFit(look) : null;
     score += fit ? fit.score * 0.5 : 30; // unknown look: middling
-    if (fit && fit.score >= FIT_OK) why.push("on-brand colours");
 
     if (productWords.length && productWords.some((w) => text.includes(w))) {
       score += 25;

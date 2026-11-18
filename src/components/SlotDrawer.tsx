@@ -9,6 +9,7 @@ import { ReelEditor } from "./ReelEditor";
 import { PostingPanel } from "./PostingPanel";
 import { CanvaPanel } from "./CanvaPanel";
 import { FitNote, SuggestedMedia } from "./MediaSuggestions";
+import { Thumb } from "./Thumb";
 import type { MediaLibraryState } from "../lib/mediaIndex";
 import { kindOf } from "./Tile";
 
@@ -154,8 +155,8 @@ export function SlotDrawer({ slot, cal, lib, onClose }: { slot: Slot; cal: Calen
                 const check = m.width && m.height ? checkMedia(draft.format, m.width, m.height, m.durationSec) : null;
                 return (
                   <div className="media-item" key={m.id}>
-                    <button type="button" className="img" style={{ backgroundImage: m.thumbnail ? `url("${m.thumbnail}")` : undefined, border: 0, width: "100%" }} onClick={() => openMedia(m)}>
-                      {!m.thumbnail && (m.mimeType.startsWith("video/") ? "▶" : "◻")}
+                    <button type="button" className="img" style={{ border: 0, width: "100%", padding: 0 }} onClick={() => openMedia(m)}>
+                      <Thumb media={m} className="mthumb fill" />
                     </button>
                     <div className="meta">
                       <div title={m.name} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</div>

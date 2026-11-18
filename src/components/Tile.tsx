@@ -1,3 +1,4 @@
+import { useThumbUrl } from "./Thumb";
 import type { DragEvent } from "react";
 import { FORMAT_LABEL, STATUS_LABEL } from "../lib/brand";
 import type { Slot } from "../lib/types";
@@ -7,7 +8,7 @@ export function kindOf(slot: Slot) {
 }
 
 export function Tile({ slot, onOpen, draggable }: { slot: Slot; onOpen: (s: Slot) => void; draggable?: boolean }) {
-  const thumb = slot.media.find((m) => m.thumbnail)?.thumbnail;
+  const thumb = useThumbUrl(slot.media.find((m) => m.thumbnail));
   const onDragStart = (e: DragEvent) => {
     e.dataTransfer.setData("text/slot-id", slot.id);
     e.dataTransfer.effectAllowed = "move";
