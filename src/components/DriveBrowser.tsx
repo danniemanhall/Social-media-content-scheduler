@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useDriveConnected } from "../lib/useDrive";
 import { DEFAULT_FOLDERS, type MediaFolder } from "../lib/mediaIndex";
+import type { IndexedMedia } from "../lib/brandFit";
+import { Thumb } from "./Thumb";
 import { connectDrive, disconnectDrive, driveAccount, driveConfigured, driveIsShared, listFolder, type DriveItem } from "../lib/drive";
 
 
@@ -11,9 +13,11 @@ interface Props {
   roots?: MediaFolder[];
   /** Called once Drive is connected, e.g. to start a scan. */
   onConnected?: () => void;
+  /** Every file found in the media folders, for searching across all of them by name. */
+  library?: IndexedMedia[];
 }
 
-export function DriveBrowser({ onPick, roots, onConnected }: Props) {
+export function DriveBrowser({ onPick, roots, onConnected, library }: Props) {
   const ROOTS = roots?.length ? roots : DEFAULT_FOLDERS;
   const connected = useDriveConnected();
   const [path, setPath] = useState<{ id: string; name: string }[]>([ROOTS[0]]);
@@ -21,6 +25,9 @@ export function DriveBrowser({ onPick, roots, onConnected }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Record<string, DriveItem>>({});
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const found = q && library ? library.filter((m) => `${m.path ?? ""} ${m.name}`.toLowerCase().includes(q)).slice(0, 120) : null;
   const folder = path[path.length - 1];
 
   const load = useCallback(async () => {
@@ -79,13 +86,6 @@ export function DriveBrowser({ onPick, roots, onConnected }: Props) {
             {r.name}
           </button>
         ))}
-        <span style={{ marginLeft: 8 }} />
-        {path.map((p, i) => (
-          <span key={p.id}>
-            {i > 0 && " / "}
-            <button onClick={() => setPath(path.slice(0, i + 1))}>{p.name}</button>
-          </span>
-        ))}
         <span className="spacer" />
 <span className="hint" style={{ fontSize: 12 }}>{driveAccount() ? `Drive: ${driveAccount()}` : ""}</span>
         <button
@@ -104,8 +104,51 @@ export function DriveBrowser({ onPick, roots, onConnected }: Props) {
           </button>
         )}
       </div>
+      {library && library.length > 0 && (
+        <input
+          type="search"
+          className="drive-search"
+          placeholder={`Search all ${ROOTS.length} media folders by name, e.g. packaging, box, table`}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      )}
+      {!found && path.length > 1 && (
+        <div className="crumbs path">
+          <button className="btn ghost small" onClick={() => setPath(path.slice(0, -1))}>‹ Back</button>
+          {path.map((p, i) => (
+            <span key={p.id}>
+              {i > 0 && " / "}
+              <button onClick={() => setPath(path.slice(0, i + 1))}>{p.name}</button>
+            </span>
+          ))}
+        </div>
+      )}
       {error && <div className="banner error">{error}</div>}
-      {loading ? (
+      {found ? (
+        found.length === 0 ? (
+          <p style={{ color: "var(--muted)" }}>No files in the media folders have "{query.trim()}" in their name or folder.</p>
+        ) : (
+          <div className="lib-grid">
+            {found.map((m) => (
+              <button
+                key={m.id}
+                className="lib-item"
+                onClick={() => (onPick ? toggle({ ...m, isFolder: false } as DriveItem) : m.link && window.open(m.link, "_blank", "noopener"))}
+                style={selected[m.id] ? { outline: "3px solid var(--caramel)" } : undefined}
+                title={`${m.path ?? ""}/${m.name}`}
+              >
+                <Thumb media={m} className="mthumb img" />
+                <div className="name">
+                  {m.mimeType.startsWith("video/") ? "▶ " : ""}
+                  {m.name}
+                  <div className="hint" style={{ fontSize: 11 }}>{m.path}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )
+      ) : loading ? (
         <p>Loading…</p>
       ) : items.length === 0 ? (
         <p style={{ color: "var(--muted)" }}>Nothing here yet.</p>

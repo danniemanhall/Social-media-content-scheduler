@@ -291,3 +291,7 @@ a.btn { text-decoration: none; }
 .broll-thumb { width: 64px; aspect-ratio: 4 / 5; flex: none; }
 .broll-moves { display: grid; gap: 6px; }
 .broll-moves .hint { display: inline; }
+.crumbs { flex-wrap: wrap; }
+.crumbs.path { margin: 4px 0 10px; display: flex; align-items: center; gap: 4px; font-size: 13px; }
+.drive-search { width: 100%; border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 8px 10px; margin: 4px 0 10px; }
+.lib-item .mthumb.img { border: 0; border-radius: 0; }
