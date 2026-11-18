@@ -4,6 +4,7 @@ import { driveConnected } from "../lib/drive";
 import type { MediaLibraryState } from "../lib/mediaIndex";
 import type { MediaRef, Slot } from "../lib/types";
 import { kindOf } from "./Tile";
+import { Thumb } from "./Thumb";
 
 /** Grid posts either side of this one (by date), for the "out of step" check. */
 function gridNeighbours(slot: Slot, all: Slot[]): Slot[] {
@@ -46,14 +47,12 @@ export function FitNote({ media, slot, all, lib }: { media: MediaRef; slot: Slot
 
   const fit = brandFit(look);
   const clash = media.mimeType.startsWith("image/") ? gridClash(look, neighbourLooks) : [];
+  const ok = fit.score >= FIT_OK && !clash.length;
   const reasons = [...fit.reasons, ...clash];
-  const cls = fit.score >= FIT_OK && !clash.length ? "ok" : fit.score >= FIT_WARN ? "warnText" : "bad";
   return (
-    <div className={cls}>
-      <span title="How well the colours and light match Roopip's palette and photo style">
-        {fit.score >= FIT_OK && !clash.length ? "✓ On brand" : "⚠ Brand check"} ({fit.score})
-      </span>
-      {reasons.length > 0 && (
+    <div className={ok ? "ok" : fit.score >= FIT_WARN ? "warnText" : "bad"} title={ok ? reasons.join(" ") : "How well the colours and light match Roopip's palette and photo style"}>
+      {ok ? "✓ On brand" : "⚠ Brand check"}
+      {!ok && reasons.length > 0 && (
         <ul className="fit-reasons">
           {reasons.map((r) => (
             <li key={r}>{r}</li>
@@ -66,7 +65,7 @@ export function FitNote({ media, slot, all, lib }: { media: MediaRef; slot: Slot
 
 /** Best-matching photos and clips from the media folders, one click to add. */
 export function SuggestedMedia({ slot, all, lib, onAdd }: { slot: Slot; all: Slot[]; lib: MediaLibraryState; onAdd: (m: MediaRef) => void }) {
-  const [more, setMore] = useState(false);
+  const [showAll, setShowAll] = useState(false);
   const suggestions = useMemo(() => {
     if (!lib.index?.items.length) return [];
     return suggestMedia(slot, lib.index.items, lib.looks, lastUsedMap(all, slot.id), slot.date, 12);
@@ -80,30 +79,42 @@ export function SuggestedMedia({ slot, all, lib, onAdd }: { slot: Slot; all: Slo
     );
   }
   if (!suggestions.length) return null;
-  const shown = more ? suggestions : suggestions.slice(0, 4);
+  const FIRST = 4;
+  const shown = showAll ? suggestions : suggestions.slice(0, FIRST);
   return (
     <div className="suggest">
       <div className="label" style={{ marginTop: 10 }}>
         Suggested for this post
-        {!driveConnected() && <span className="hint"> (connect Drive on the Media tab to see previews)</span>}
       </div>
+      {!driveConnected() && (
+        <div className="hint">Connect Google Drive on the Media tab to see these photos.</div>
+      )}
       <div className="suggest-row">
-        {shown.map((s) => (
-          <div className="suggest-item" key={s.media.id} title={`${s.media.path ?? ""}/${s.media.name}`}>
-            <div className="img" style={{ backgroundImage: s.media.thumbnail ? `url("${s.media.thumbnail}")` : undefined }}>
-              {!s.media.thumbnail && (s.media.mimeType.startsWith("video/") ? "▶" : "◻")}
-              {s.fit && <span className={`fit-badge ${s.fit.score >= FIT_OK ? "ok" : s.fit.score >= FIT_WARN ? "warn" : "bad"}`}>{s.fit.score}</span>}
+        {shown.map((s) => {
+          const fitOk = s.fit && s.fit.score >= FIT_OK;
+          const reasons = s.fit?.reasons ?? [];
+          return (
+            <div className="suggest-item" key={s.media.id}>
+              <a href={s.media.link} target="_blank" rel="noopener noreferrer" title="Open in Drive">
+                <Thumb media={s.media} className="img" />
+              </a>
+              <div className="name" title={`${s.media.path ?? ""}/${s.media.name}`}>{s.media.name.replace(/\.[a-z0-9]+$/i, "")}</div>
+              <div className="why">{s.why.join(" · ")}</div>
+              {s.fit && (
+                <div className={fitOk ? "ok" : s.fit.score >= FIT_WARN ? "warnText" : "bad"} title={reasons.join(" ")}>
+                  {fitOk ? "✓ On brand" : `⚠ ${reasons[0] ?? "Check against the brand"}`}
+                </div>
+              )}
+              <button type="button" className="btn small" onClick={() => onAdd(s.media)}>
+                Add to post
+              </button>
             </div>
-            <div className="why">{s.why.slice(0, 2).join(", ") || s.media.name}</div>
-            <button type="button" className="btn small" onClick={() => onAdd(s.media)}>
-              Add
-            </button>
-          </div>
-        ))}
+          );
+        })}
       </div>
-      {suggestions.length > 4 && (
-        <button type="button" className="btn ghost small" onClick={() => setMore(!more)}>
-          {more ? "Fewer" : `${suggestions.length - 4} more`}
+      {suggestions.length > FIRST && (
+        <button type="button" className="btn small" onClick={() => setShowAll((v) => !v)} aria-expanded={showAll}>
+          {showAll ? "Show fewer" : `Show ${suggestions.length - FIRST} more suggestions`}
         </button>
       )}
     </div>

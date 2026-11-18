@@ -38,6 +38,15 @@ describe("brand fit", () => {
     expect(fit.reasons.join(" ")).toMatch(/cool/);
   });
 
+  it("accepts Roopip's own muted product colours on a white studio background, with a gentle note", () => {
+    const packshot = analysePixels(pixels([[[252, 251, 250], 0.62], [[86, 89, 83], 0.3], [[219, 209, 198], 0.08]]));
+    const fit = brandFit(packshot);
+    expect(fit.score).toBeGreaterThanOrEqual(FIT_OK);
+    expect(fit.reasons.join(" ")).toMatch(/white studio background/);
+    const navy = analysePixels(pixels([[[118, 121, 130], 0.6], [[253, 253, 253], 0.4]]));
+    expect(brandFit(navy).reasons.join(" ")).not.toMatch(/palette|cool/);
+  });
+
   it("flags very dark images", () => {
     expect(brandFit(darkPhoto).reasons.join(" ")).toMatch(/dark/);
   });

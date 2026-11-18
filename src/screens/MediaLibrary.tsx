@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { DriveBrowser } from "../components/DriveBrowser";
+import { Thumb } from "../components/Thumb";
 import { brandFit, FIT_WARN } from "../lib/brandFit";
 import { driveConnected } from "../lib/drive";
 import type { MediaLibraryState } from "../lib/mediaIndex";
@@ -51,7 +52,7 @@ export function MediaLibrary({ lib }: { lib: MediaLibraryState }) {
           <div className="lib-grid" style={{ marginTop: 10 }}>
             {offBrand.slice(0, 40).map(({ m, fit }) => (
               <a key={m.id} className="lib-item" href={m.link} target="_blank" rel="noopener noreferrer" title={fit.reasons.join(" ")}>
-                <div className="img" style={{ backgroundImage: m.thumbnail ? `url("${m.thumbnail}")` : undefined }} />
+                <Thumb media={m} className="img" />
                 <div className="name">{m.name}</div>
                 <div className="name bad" style={{ whiteSpace: "normal" }}>{fit.reasons[0]}</div>
               </a>
