@@ -13,8 +13,19 @@ All four phases of the [plan](https://claude.ai/artifact/DEFeCBCvXBPbexWFkp5Fqk)
 | **Overview** | The next 4 weeks at a glance, colour-coded by format, with counts of what needs media or approval and an Instagram grid preview (newest top-left). |
 | **Calendar** | Month and week views. Drag posts between days, add a post with **+** on any day. |
 | **Post slot** | Opens from any tile: the idea, shot list, caption, CTA and hashtags (with Instagram's limits), date and time, status, music choice for reels, "Ask Claude" flag, notes. Drop in photos and videos, or choose them from Drive. Each file is checked for the right shape (9:16 for reels and stories, 4:5 for the grid). **Give me another idea** swaps the idea and keeps your media; **Lock** stops it from changing. |
-| **Media** | Browses the Drive folders *Product Photos* and *Brand Assets*. |
-| **Brand & ideas** | The brand profile (palette, fonts, voice, pillars, approved claims) and the searchable idea bank. |
+| **Media** | Browses the media folders. **Scan folders** lists every photo and clip in them and reads each one's colours, so posts can suggest media and flag off-brand files. |
+| **Brand & ideas** | The brand profile (palette, fonts, voice, pillars, approved claims), the media folders (add any Drive folder by link), and the searchable idea bank. |
+
+### Media suggestions and brand checks
+
+- `src/lib/brandFit.ts` scores each photo's colours and light against the Roopip palette and photo direction (warm, natural, soft, neutral), and compares grid posts with the three grid posts either side so the grid stays even.
+- Every post shows **Suggested for this post**: on-brand files whose folder or file names match the post's product and pillar, preferring ones not used in the last three weeks. Each file on a post gets a brand-fit note with plain reasons when it's off.
+- Fonts and on-image text can't be read from pixels, so Claude's scheduled run also does a **brand check** on upcoming posts' media and leaves notes on the post.
+- Google Photos albums can't be linked: since 2025 Google only lets apps read photos they uploaded themselves. Keep shoots in Drive folders.
+
+### Canva
+
+Each post has **New design at the right size** buttons (story 1080 × 1920, grid post 1080 × 1350, reel 1080 × 1920) that open a blank Canva design. Paste a design's link and pick a size, and Claude's next scheduled run exports it through the Canva connector. **Add to post** then saves the files to the *Roopip Canva designs* folder in Drive and attaches them. The design must be in, or shared with, the Canva account connected to the Claude project.
 
 ### How the calendar fills itself
 

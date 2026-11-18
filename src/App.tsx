@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { SlotDrawer } from "./components/SlotDrawer";
 import { openStore, whoAmI, type Store } from "./lib/store";
 import { useCalendar } from "./lib/useCalendar";
+import { useMediaLibrary } from "./lib/mediaIndex";
 import { BrandScreen } from "./screens/BrandScreen";
 import { CalendarScreen } from "./screens/CalendarScreen";
 import { MediaLibrary } from "./screens/MediaLibrary";
@@ -34,6 +35,7 @@ export default function App() {
 
 function Shell({ store, email }: { store: Store; email: string | null }) {
   const cal = useCalendar(store);
+  const lib = useMediaLibrary(store);
   const [tab, setTab] = useState<Tab>(initialTab);
   const [openId, setOpenId] = useState<string | null>(null);
   const open = (s: Slot) => setOpenId(s.id);
@@ -70,10 +72,10 @@ function Shell({ store, email }: { store: Store; email: string | null }) {
         {cal.error && <div className="banner error">{cal.error}</div>}
         {tab === "overview" && <Overview cal={cal} onOpen={open} />}
         {tab === "calendar" && <CalendarScreen cal={cal} onOpen={open} />}
-        {tab === "media" && <MediaLibrary />}
-        {tab === "brand" && <BrandScreen ideas={cal.ideas} />}
+        {tab === "media" && <MediaLibrary lib={lib} />}
+        {tab === "brand" && <BrandScreen ideas={cal.ideas} lib={lib} />}
       </main>
-      {openSlot && <SlotDrawer slot={openSlot} cal={cal} onClose={() => setOpenId(null)} />}
+      {openSlot && <SlotDrawer slot={openSlot} cal={cal} lib={lib} onClose={() => setOpenId(null)} />}
     </>
   );
 }

@@ -33,6 +33,20 @@ function isSlot(x: unknown): x is SlotLike {
   return !!s && typeof s.id === "string" && s.id.length <= 120 && typeof s.date === "string" && DATE.test(s.date);
 }
 
+/** Accepts only https links on Canva's own domains. */
+export function canvaUrl(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    const host = u.hostname.toLowerCase();
+    if (u.protocol !== "https:" || u.username || u.password || u.port) return null;
+    if (host === "canva.com" || host.endsWith(".canva.com")) return u.toString();
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export const onRequest: PagesFunction<Env> = async ({ request, env, params }) => {
   const route = ((params.route as string[] | undefined) ?? []).join("/");
   const url = new URL(request.url);
@@ -57,6 +71,18 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params }) =>
     if (box && request.method === "DELETE") {
       if (env.OUTBOX) await env.OUTBOX.delete(box[1]);
       return json({ deleted: true });
+    }
+
+    // Canva export links don't allow the browser to fetch them directly, so
+    // the app fetches them through here. Only Canva's own download hosts.
+    if (route === "canva-file" && request.method === "GET") {
+      const target = canvaUrl(url.searchParams.get("url"));
+      if (!target) return json({ error: "That isn't a Canva download link." }, 400);
+      const res = await fetch(target, { redirect: "follow" });
+      if (!res.ok) return json({ error: res.status === 403 || res.status === 404 ? "expired" : `Canva said ${res.status}` }, res.status === 403 || res.status === 404 ? 410 : 502);
+      return new Response(res.body, {
+        headers: { "content-type": res.headers.get("content-type") ?? "application/octet-stream", "cache-control": "no-store" },
+      });
     }
 
     if (route === "slots" && request.method === "GET") {

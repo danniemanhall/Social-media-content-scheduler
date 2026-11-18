@@ -16,6 +16,13 @@ export interface DriveItem extends MediaRef {
   isFolder: boolean;
 }
 
+interface TokenResponse {
+  access_token?: string;
+  expires_in?: number;
+  error?: string;
+  error_description?: string;
+}
+
 interface TokenClient {
   requestAccessToken(opts?: { prompt?: string }): void;
 }
@@ -27,8 +34,10 @@ declare global {
           initTokenClient(cfg: {
             client_id: string;
             scope: string;
-            callback: (r: { access_token?: string; expires_in?: number; error?: string }) => void;
+            callback: (r: TokenResponse) => void;
+            error_callback?: (e: { type?: string; message?: string }) => void;
           }): TokenClient;
+          hasGrantedAllScopes(r: TokenResponse, ...scopes: string[]): boolean;
         };
       };
     };
@@ -36,6 +45,41 @@ declare global {
 }
 
 let token: { value: string; expires: number } | null = null;
+let chosenOnce = false;
+
+const ALLOWED_HINT =
+  "Choose carli@roopip.co.za on the Google pop-up. Other Google accounts are blocked until they are added as test users in Google Cloud (Google Auth Platform, then Audience, then Test users).";
+
+/** Turns Google's sign-in errors into something a person can act on. */
+export function signInMessage(error: string | undefined): string {
+  switch (error) {
+    case "access_denied":
+      return `Google refused this account. ${ALLOWED_HINT}`;
+    case "popup_closed":
+    case "popup_closed_by_user":
+      return "The Google pop-up was closed before it finished. Try again.";
+    case "popup_failed_to_open":
+      return "The browser blocked the Google pop-up. Allow pop-ups for this site and try again.";
+    case "missing_scopes":
+      return "Drive wasn't fully allowed. Try again, and tick both Google Drive boxes on the Google pop-up.";
+    default:
+      return error ? `Google sign-in failed (${error}). ${ALLOWED_HINT}` : "Sign-in was cancelled.";
+  }
+}
+
+/** Turns a failed Drive request into a plain message. */
+export function driveMessage(status: number, body: string): string {
+  if (status === 401) {
+    token = null;
+    return "The Google sign-in has expired. Connect Google Drive again.";
+  }
+  if (status === 403)
+    return /insufficient|scope/i.test(body)
+      ? "Drive wasn't fully allowed. Disconnect and connect again, and tick both Google Drive boxes on the Google pop-up."
+      : `Google Drive denied access. The signed-in account can't open this folder or file. ${ALLOWED_HINT}`;
+  if (status === 404) return `Drive can't find this folder or file with the signed-in account. ${ALLOWED_HINT}`;
+  return `Drive said ${status}: ${body.slice(0, 200)}`;
+}
 
 function loadScript(): Promise<void> {
   if (window.google?.accounts) return Promise.resolve();
@@ -46,6 +90,12 @@ function loadScript(): Promise<void> {
     s.onerror = () => reject(new Error("Could not load Google sign-in"));
     document.head.appendChild(s);
   });
+}
+
+/** Forgets the sign-in, so the next connect asks for an account again. */
+export function disconnectDrive() {
+  token = null;
+  chosenOnce = false;
 }
 
 export function driveConnected() {
@@ -61,12 +111,18 @@ export async function connectDrive(): Promise<void> {
       client_id: CLIENT_ID,
       scope: SCOPE,
       callback: (r) => {
-        if (r.error || !r.access_token) return reject(new Error(r.error ?? "Sign-in cancelled"));
+        if (r.error || !r.access_token) return reject(new Error(signInMessage(r.error)));
+        const oauth2 = window.google!.accounts.oauth2;
+        if (!oauth2.hasGrantedAllScopes(r, ...SCOPE.split(" "))) return reject(new Error(signInMessage("missing_scopes")));
         token = { value: r.access_token, expires: Date.now() + (r.expires_in ?? 3600) * 1000 - 60_000 };
+        chosenOnce = true;
         resolve();
       },
+      error_callback: (e) => reject(new Error(signInMessage(e.type))),
     });
-    client.requestAccessToken({ prompt: "" });
+    // The first time in each visit, always show the account picker, so the
+    // browser's default Google account isn't used by accident.
+    client.requestAccessToken({ prompt: chosenOnce ? "" : "select_account" });
   });
 }
 
@@ -120,7 +176,7 @@ export async function listFolder(folderId: string): Promise<DriveItem[]> {
     const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
       headers: { authorization: `Bearer ${token!.value}` },
     });
-    if (!res.ok) throw new Error(`Drive said ${res.status}: ${await res.text()}`);
+    if (!res.ok) throw new Error(driveMessage(res.status, await res.text()));
     const body = (await res.json()) as { files: DriveFile[]; nextPageToken?: string };
     items.push(...body.files.map(toItem));
     pageToken = body.nextPageToken ?? "";
@@ -131,7 +187,7 @@ export async function listFolder(folderId: string): Promise<DriveItem[]> {
 async function authed(url: string, init: RequestInit = {}) {
   await connectDrive();
   const res = await fetch(url, { ...init, headers: { ...(init.headers ?? {}), authorization: `Bearer ${token!.value}` } });
-  if (!res.ok) throw new Error(`Drive said ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(driveMessage(res.status, await res.text()));
   return res;
 }
 
@@ -142,16 +198,17 @@ export async function downloadFile(fileId: string): Promise<Blob> {
 }
 
 export const REELS_FOLDER = "Roopip reels";
+export const CANVA_FOLDER = "Roopip Canva designs";
 
-async function reelsFolder(): Promise<string> {
-  const q = `name = '${REELS_FOLDER}' and mimeType = '${FOLDER}' and trashed = false`;
+async function appFolder(folderName: string): Promise<string> {
+  const q = `name = '${folderName}' and mimeType = '${FOLDER}' and trashed = false`;
   const found = (await (await authed(`https://www.googleapis.com/drive/v3/files?${new URLSearchParams({ q, fields: "files(id)" })}`)).json()) as { files: { id: string }[] };
   if (found.files[0]) return found.files[0].id;
   const made = (await (
     await authed("https://www.googleapis.com/drive/v3/files?fields=id", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: REELS_FOLDER, mimeType: FOLDER }),
+      body: JSON.stringify({ name: folderName, mimeType: FOLDER }),
     })
   ).json()) as { id: string };
   return made.id;
@@ -159,11 +216,19 @@ async function reelsFolder(): Promise<string> {
 
 /** Saves a finished reel to the "Roopip reels" folder in the signed-in person's Drive. */
 export async function saveReel(name: string, video: Blob): Promise<{ id: string; link: string }> {
-  const parent = await reelsFolder();
+  const saved = await saveToAppFolder(REELS_FOLDER, name, video, "video/mp4");
+  return { id: saved.id, link: saved.link! };
+}
+
+/** Uploads a file into one of the app's own Drive folders and returns it as media. */
+export async function saveToAppFolder(folderName: string, name: string, file: Blob, mimeType: string): Promise<DriveItem> {
+  const parent = await appFolder(folderName);
   const form = new FormData();
-  form.append("metadata", new Blob([JSON.stringify({ name, parents: [parent], mimeType: "video/mp4" })], { type: "application/json" }));
-  form.append("file", video, name);
-  const res = await authed("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink", { method: "POST", body: form });
-  const body = (await res.json()) as { id: string; webViewLink: string };
-  return { id: body.id, link: body.webViewLink };
+  form.append("metadata", new Blob([JSON.stringify({ name, parents: [parent], mimeType })], { type: "application/json" }));
+  form.append("file", file, name);
+  const res = await authed(
+    "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,thumbnailLink,webViewLink,imageMediaMetadata(width,height,rotation),videoMediaMetadata(width,height,durationMillis)",
+    { method: "POST", body: form },
+  );
+  return toItem((await res.json()) as DriveFile);
 }

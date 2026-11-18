@@ -7,12 +7,15 @@ import type { Calendar } from "../lib/useCalendar";
 import { MediaPicker } from "./MediaPicker";
 import { ReelEditor } from "./ReelEditor";
 import { PostingPanel } from "./PostingPanel";
+import { CanvaPanel } from "./CanvaPanel";
+import { FitNote, SuggestedMedia } from "./MediaSuggestions";
+import type { MediaLibraryState } from "../lib/mediaIndex";
 import { kindOf } from "./Tile";
 
 const CAPTION_LIMIT = 2200;
 const HASHTAG_LIMIT = 30;
 
-export function SlotDrawer({ slot, cal, onClose }: { slot: Slot; cal: Calendar; onClose: () => void }) {
+export function SlotDrawer({ slot, cal, lib, onClose }: { slot: Slot; cal: Calendar; lib: MediaLibraryState; onClose: () => void }) {
   const [draft, setDraft] = useState<Slot>(slot);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -158,6 +161,7 @@ export function SlotDrawer({ slot, cal, onClose }: { slot: Slot; cal: Calendar; 
                       <div title={m.name} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</div>
                       {check && <div className={check.ok ? "ok" : "bad"}>{check.message}</div>}
                       {m.source === "local" && <div style={{ color: "var(--muted)" }}>Original on this device</div>}
+                      <FitNote media={m} slot={draft} all={cal.slots} lib={lib} />
                       <button type="button" className="rm" onClick={() => save({ media: draft.media.filter((x) => x.id !== m.id) })}>Remove</button>
                     </div>
                   </div>
@@ -165,6 +169,38 @@ export function SlotDrawer({ slot, cal, onClose }: { slot: Slot; cal: Calendar; 
               })}
             </div>
           )}
+          <SuggestedMedia
+            slot={draft}
+            all={cal.slots}
+            lib={lib}
+            onAdd={(m) => {
+              const { path: _p, ...ref } = m as MediaRef & { path?: string };
+              save({ media: [...draft.media, ref] });
+            }}
+          />
+        </div>
+
+        {draft.brandCheck && (
+          <div className={`banner ${draft.brandCheck.ok ? "" : "warn"}`} style={{ marginTop: -6 }}>
+            <b>Claude's brand check</b>
+            {draft.brandCheck.mediaIds.join() !== draft.media.map((m) => m.id).join() && (
+              <span className="hint"> (from before the media changed; it runs again on the next check)</span>
+            )}
+            {draft.brandCheck.ok && !draft.brandCheck.notes.length ? (
+              <div>Fonts, text and colours all look on brand.</div>
+            ) : (
+              <ul className="fit-reasons">
+                {draft.brandCheck.notes.map((n) => (
+                  <li key={n}>{n}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        <div className="field">
+          <div className="label">Canva</div>
+          <CanvaPanel slot={draft} save={save} />
         </div>
 
         {draft.format === "reel" && (
