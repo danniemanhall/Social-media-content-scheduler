@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { DriveBrowser } from "../components/DriveBrowser";
 import { Thumb } from "../components/Thumb";
 import { brandFit, FIT_WARN } from "../lib/brandFit";
-import { driveConnected } from "../lib/drive";
+import { useDriveConnected } from "../lib/useDrive";
 import type { MediaLibraryState } from "../lib/mediaIndex";
 
 function when(iso: string) {
@@ -10,6 +10,7 @@ function when(iso: string) {
 }
 
 export function MediaLibrary({ lib }: { lib: MediaLibraryState }) {
+  const connected = useDriveConnected();
   const items = lib.index?.items ?? [];
   const checked = items.filter((m) => lib.looks[m.id]);
   const offBrand = useMemo(
@@ -38,7 +39,7 @@ export function MediaLibrary({ lib }: { lib: MediaLibraryState }) {
               ? `${items.length} photos and clips in ${lib.folders.length} folders, ${checked.length} colour-checked. Last scanned ${when(lib.index.at)}.`
               : "Scan the media folders so the app can suggest media for each post and check it against the brand.")}
         </div>
-        <button className="btn small primary" disabled={!!lib.progress || !driveConnected()} title={driveConnected() ? "" : "Connect Google Drive below first"} onClick={() => void lib.refresh()}>
+        <button className="btn small primary" disabled={!!lib.progress || !connected} title={connected ? "" : "Connect Google Drive below first"} onClick={() => void lib.refresh()}>
           {lib.index ? "Scan again" : "Scan folders"}
         </button>
       </div>

@@ -26,6 +26,9 @@ interface TokenResponse {
 interface TokenClient {
   requestAccessToken(opts?: { prompt?: string }): void;
 }
+interface CodeClient {
+  requestCode(): void;
+}
 declare global {
   interface Window {
     google?: {
@@ -38,6 +41,14 @@ declare global {
             error_callback?: (e: { type?: string; message?: string }) => void;
           }): TokenClient;
           hasGrantedAllScopes(r: TokenResponse, ...scopes: string[]): boolean;
+          initCodeClient(cfg: {
+            client_id: string;
+            scope: string;
+            ux_mode: "popup";
+            select_account?: boolean;
+            callback: (r: { code?: string; error?: string }) => void;
+            error_callback?: (e: { type?: string; message?: string }) => void;
+          }): CodeClient;
         };
       };
     };
@@ -46,6 +57,89 @@ declare global {
 
 let token: { value: string; expires: number } | null = null;
 let chosenOnce = false;
+/**
+ * True when the server keeps Roopip's Drive connected (see server/google.ts),
+ * false when it can't and the browser signs in each visit, null until known.
+ */
+let serverMode: boolean | null = null;
+let connectedAs: string | null = null;
+let restoring: Promise<boolean> | null = null;
+const listeners = new Set<() => void>();
+
+/** Called whenever Drive connects or disconnects. Returns an unsubscribe. */
+export function onDriveChange(fn: () => void) {
+  listeners.add(fn);
+  return () => void listeners.delete(fn);
+}
+const changed = () => listeners.forEach((fn) => fn());
+
+/** The Google account Drive is connected as, when the server knows it. */
+export function driveAccount() {
+  return connectedAs;
+}
+
+/** True when signing out also signs Drive out for everyone (shared connection). */
+export function driveIsShared() {
+  return serverMode === true;
+}
+
+interface ServerToken {
+  connected: boolean;
+  configured?: boolean;
+  accessToken?: string;
+  expiresIn?: number;
+  email?: string | null;
+  error?: string;
+}
+
+function applyServerToken(t: ServerToken) {
+  token = { value: t.accessToken!, expires: Date.now() + (t.expiresIn ?? 3600) * 1000 - 60_000 };
+  connectedAs = t.email ?? null;
+  chosenOnce = true;
+}
+
+/** Asks the server for a fresh token, without any pop-up. */
+async function fetchServerToken(): Promise<boolean> {
+  try {
+    const res = await fetch("/api/google/token", { headers: { accept: "application/json" } });
+    if (!res.ok || !(res.headers.get("content-type") ?? "").includes("json")) {
+      serverMode = false;
+      return false;
+    }
+    const t = (await res.json()) as ServerToken;
+    serverMode = t.configured !== false;
+    if (t.connected && t.accessToken) {
+      applyServerToken(t);
+      return true;
+    }
+    return false;
+  } catch {
+    serverMode = false;
+    return false;
+  }
+}
+
+/**
+ * Picks up Roopip's saved Drive connection, if there is one, with no pop-up.
+ * Safe to call often: it only asks the server once per page load.
+ */
+export function restoreDrive(): Promise<boolean> {
+  if (driveConnected()) return Promise.resolve(true);
+  if (!restoring) {
+    restoring = fetchServerToken().then((ok) => {
+      if (ok) changed();
+      return ok;
+    });
+  }
+  return restoring;
+}
+
+/** A valid token, refreshed quietly through the server when it has expired. */
+async function ensureToken() {
+  if (driveConnected()) return;
+  if (serverMode !== false && (await fetchServerToken())) return;
+  await connectDrive();
+}
 
 const ALLOWED_HINT =
   "Choose carli@roopip.co.za on the Google pop-up. Other Google accounts are blocked until they are added as test users in Google Cloud (Google Auth Platform, then Audience, then Test users).";
@@ -93,9 +187,13 @@ function loadScript(): Promise<void> {
 }
 
 /** Forgets the sign-in, so the next connect asks for an account again. */
-export function disconnectDrive() {
+export async function disconnectDrive() {
+  if (serverMode) await fetch("/api/google/disconnect", { method: "POST" }).catch(() => {});
   token = null;
+  connectedAs = null;
   chosenOnce = false;
+  restoring = null;
+  changed();
 }
 
 export function driveConnected() {
@@ -105,10 +203,46 @@ export function driveConnected() {
 export async function connectDrive(): Promise<void> {
   if (!CLIENT_ID) throw new Error("Google Drive isn't set up yet (VITE_GOOGLE_CLIENT_ID missing).");
   if (driveConnected()) return;
+  if (await restoreDrive()) return;
   await loadScript();
+  if (serverMode) await connectThroughServer();
+  else await connectInBrowser();
+  changed();
+}
+
+/**
+ * Signs in once and lets the server keep Drive connected: Google gives the
+ * server a long-lived sign-in it refreshes on its own, so nobody has to
+ * connect again on the next visit.
+ */
+async function connectThroughServer() {
+  const code = await new Promise<string>((resolve, reject) => {
+    const client = window.google!.accounts.oauth2.initCodeClient({
+      client_id: CLIENT_ID!,
+      scope: `${SCOPE} openid email`,
+      ux_mode: "popup",
+      select_account: true,
+      callback: (r) => (r.code ? resolve(r.code) : reject(new Error(signInMessage(r.error)))),
+      error_callback: (e) => reject(new Error(signInMessage(e.type))),
+    });
+    client.requestCode();
+  });
+  const res = await fetch("/api/google/connect", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ code }),
+  });
+  const body = (await res.json().catch(() => ({}))) as ServerToken;
+  if (!res.ok || !body.accessToken) throw new Error(signInMessage(body.error === "missing_scopes" ? "missing_scopes" : body.error));
+  applyServerToken(body);
+  restoring = Promise.resolve(true);
+}
+
+/** The fallback when the server can't keep a connection: a sign-in per visit. */
+async function connectInBrowser() {
   await new Promise<void>((resolve, reject) => {
     const client = window.google!.accounts.oauth2.initTokenClient({
-      client_id: CLIENT_ID,
+      client_id: CLIENT_ID!,
       scope: SCOPE,
       callback: (r) => {
         if (r.error || !r.access_token) return reject(new Error(signInMessage(r.error)));
@@ -160,7 +294,7 @@ function toItem(f: DriveFile): DriveItem {
 
 /** Lists folders, images and videos directly inside a Drive folder. */
 export async function listFolder(folderId: string): Promise<DriveItem[]> {
-  await connectDrive();
+  await ensureToken();
   const items: DriveItem[] = [];
   let pageToken = "";
   do {
@@ -187,7 +321,7 @@ export async function listFolder(folderId: string): Promise<DriveItem[]> {
 }
 
 async function authed(url: string, init: RequestInit = {}) {
-  await connectDrive();
+  await ensureToken();
   const res = await fetch(url, { ...init, headers: { ...(init.headers ?? {}), authorization: `Bearer ${token!.value}` } });
   if (!res.ok) throw new Error(driveMessage(res.status, await res.text()));
   return res;
@@ -204,6 +338,8 @@ const THUMB_TTL = 50 * 60 * 1000;
 export async function freshThumbnail(fileId: string): Promise<string | null> {
   const hit = thumbCache.get(fileId);
   if (hit && Date.now() - hit.at < THUMB_TTL) return hit.url;
+  if (!driveConnected() && !(await restoreDrive())) return null;
+  if (!driveConnected() && serverMode) await fetchServerToken();
   if (!driveConnected()) return null;
   const res = await fetch(
     `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=thumbnailLink&supportsAllDrives=true`,

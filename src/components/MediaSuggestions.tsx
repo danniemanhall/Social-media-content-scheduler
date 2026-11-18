@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { brandFit, FIT_OK, FIT_WARN, gridClash, lastUsedMap, suggestMedia, type Look } from "../lib/brandFit";
-import { driveConnected } from "../lib/drive";
+import { useDriveConnected } from "../lib/useDrive";
 import type { MediaLibraryState } from "../lib/mediaIndex";
 import type { MediaRef, Slot } from "../lib/types";
 import { kindOf } from "./Tile";
@@ -66,6 +66,7 @@ export function FitNote({ media, slot, all, lib }: { media: MediaRef; slot: Slot
 /** Best-matching photos and clips from the media folders, one click to add. */
 export function SuggestedMedia({ slot, all, lib, onAdd }: { slot: Slot; all: Slot[]; lib: MediaLibraryState; onAdd: (m: MediaRef) => void }) {
   const [showAll, setShowAll] = useState(false);
+  const connected = useDriveConnected();
   const suggestions = useMemo(() => {
     if (!lib.index?.items.length) return [];
     return suggestMedia(slot, lib.index.items, lib.looks, lastUsedMap(all, slot.id), slot.date, 12);
@@ -86,7 +87,7 @@ export function SuggestedMedia({ slot, all, lib, onAdd }: { slot: Slot; all: Slo
       <div className="label" style={{ marginTop: 10 }}>
         Suggested for this post
       </div>
-      {!driveConnected() && (
+      {!connected && (
         <div className="hint">Connect Google Drive on the Media tab to see these photos.</div>
       )}
       <div className="suggest-row">
