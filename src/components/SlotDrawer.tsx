@@ -331,6 +331,7 @@ export function SlotDrawer({ slot, cal, lib, onClose }: { slot: Slot; cal: Calen
       </aside>
       {picking && (
         <MediaPicker
+          lib={lib}
           onClose={() => setPicking(false)}
           onPick={(items) => {
             setPicking(false);

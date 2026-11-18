@@ -62,7 +62,7 @@ export function MediaLibrary({ lib }: { lib: MediaLibraryState }) {
         </details>
       )}
 
-      <DriveBrowser roots={lib.folders} onConnected={() => !lib.index && void lib.refresh()} />
+      <DriveBrowser roots={lib.folders} library={lib.index?.items} onConnected={() => !lib.index && void lib.refresh()} />
     </div>
   );
 }

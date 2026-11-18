@@ -18,6 +18,12 @@ export interface Look {
   warmth: number;
   /** 0 = grey, 1 = neon. */
   saturation: number;
+  /**
+   * Share of the photo's outer edge that is plain white or pale grey backdrop
+   * (0-1). High on studio packshots, low on photos taken in a real room.
+   * Missing on looks read before this was added.
+   */
+  edgeWhite?: number;
 }
 
 export interface Fit {
@@ -89,7 +95,7 @@ function hueName(hex: string): string {
 }
 
 /** Summarises raw RGBA pixels (from a small canvas) into a Look. */
-export function analysePixels(data: Uint8ClampedArray | number[]): Look {
+export function analysePixels(data: Uint8ClampedArray | number[], size = 64): Look {
   const buckets = new Map<number, { n: number; r: number; g: number; b: number }>();
   let n = 0;
   let sumL = 0;
@@ -122,7 +128,24 @@ export function analysePixels(data: Uint8ClampedArray | number[]): Look {
     bk.b += b;
     buckets.set(key, bk);
   }
-  if (!n) return { colours: [], brightness: 0.5, warmth: 0, saturation: 0 };
+  if (!n) return { colours: [], brightness: 0.5, warmth: 0, saturation: 0, edgeWhite: 0 };
+
+  // The outer ring of the photo: on a studio packshot it is all backdrop.
+  const ring = Math.max(1, Math.round(size / 16));
+  let edge = 0;
+  let edgeW = 0;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      if (x >= ring && x < size - ring && y >= ring && y < size - ring) continue;
+      const i = (y * size + x) * 4;
+      if (i + 3 >= data.length || data[i + 3] < 128) continue;
+      edge++;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      if (Math.min(r, g, b) > 205 && Math.max(r, g, b) - Math.min(r, g, b) < 24) edgeW++;
+    }
+  }
 
   // Merge near-identical buckets into a handful of main colours.
   const sorted = [...buckets.values()].sort((a, b) => b.n - a.n);
@@ -148,6 +171,7 @@ export function analysePixels(data: Uint8ClampedArray | number[]): Look {
     brightness: Math.round((sumL / n) * 100) / 100,
     warmth: Math.round(((nBright > n * 0.15 ? sumWarmBright / nBright : sumWarm / n)) * 100) / 100,
     saturation: Math.round((sumSat / n) * 100) / 100,
+    edgeWhite: edge ? Math.round((edgeW / edge) * 100) / 100 : 0,
   };
 }
 
@@ -267,7 +291,8 @@ const SCENE_WORDS: Record<Scene, string[]> = {
     "evening", "sunday", "summer", "holiday", "real home", "everyday",
   ],
   product: [
-    "product shot", "packshot", "pack shot", "flat lay", "flatlay", "white background", "studio", "colourway", "colorway",
+    "product shot", "product shots", "product photo", "product photos", "product image", "product images", "products",
+    "packshot", "packshots", "pack shot", "cut out", "cutout", "flat lay", "flatlay", "white background", "studio", "colourway", "colorway",
     "colours", "colors", "range", "line up", "lineup", "catalogue", "catalog", "new in", "launch", "price", "sizes", "shop",
   ],
   process: [
@@ -327,8 +352,16 @@ export function sceneForMedia(m: Pick<IndexedMedia, "name" | "path">, look: Look
   const named = topScene(sceneHits(`${m.path ?? ""} ${m.name.replace(/\.[a-z0-9]+$/i, "")}`));
   if (named) return named;
   if (!look) return null;
-  return whiteShare(look) > 0.5 ? "product" : "lifestyle";
+  if (look.edgeWhite !== undefined) {
+    if (look.edgeWhite >= 0.55) return "product"; // the edges are all backdrop: a studio shot
+    if (look.edgeWhite <= 0.2) return "lifestyle"; // a real setting runs right to the edges
+    return null; // can't tell
+  }
+  return whiteShare(look) > 0.5 ? "product" : null;
 }
+
+/** True for looks read before the backdrop check existed, so they get read again. */
+export const lookIsOld = (l: Look | undefined) => !!l && l.edgeWhite === undefined;
 
 const STOP = new Set(
   "about after again also and are around back been before being but can come could each every from have here into just like look made make more most much need only other our over same see show some such than that the their them then there these they this those through time very want what when where which while with your post photo photos video shot shots".split(" "),

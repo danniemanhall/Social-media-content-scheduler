@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analysePixels, brandFit, FIT_OK, FIT_WARN, gridClash, lastUsedMap, sceneForSlot, suggestMedia, type IndexedMedia, type Look } from "./brandFit";
+import { analysePixels, brandFit, FIT_OK, FIT_WARN, gridClash, lastUsedMap, sceneForMedia, sceneForSlot, suggestMedia, type IndexedMedia, type Look } from "./brandFit";
 import type { Slot } from "./types";
 
 /** Builds RGBA pixels from [colour, share] pairs, with a little noise like a real photo. */
@@ -107,6 +107,28 @@ describe("media suggestions", () => {
     expect(got.slice(0, 2).map((g) => g.media.id).sort()).toEqual(["life", "named"]);
     expect(got[0].why).toContain("lifestyle shot");
     expect(got.find((g) => g.media.id === "named")!.why).toContain('"sunday"');
+  });
+
+  it("tells a studio packshot from a photo taken in a room by its edges", () => {
+    // 64x64: a navy planter in the middle of a white backdrop, and the same planter on a wooden table.
+    const scene = (bg: [number, number, number]) => {
+      const px: number[] = [];
+      for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) {
+        const inside = x > 14 && x < 50 && y > 10 && y < 56;
+        const [r, g, b] = inside ? [40, 50, 90] : bg;
+        px.push(r, g, b, 255);
+      }
+      return analysePixels(px);
+    };
+    const studio = scene([248, 248, 246]);
+    const room = scene([150, 118, 88]);
+    expect(studio.edgeWhite).toBeGreaterThan(0.9);
+    expect(room.edgeWhite).toBe(0);
+    const m = { name: "Navy XS Planter.jpg", path: "Media" };
+    expect(sceneForMedia(m, studio)).toBe("product");
+    expect(sceneForMedia(m, room)).toBe("lifestyle");
+    expect(sceneForMedia({ name: "x.jpg", path: "Roopip/Product Photos" }, room)).toBe("product");
+    expect(sceneForMedia(m, { ...room, edgeWhite: undefined })).toBeNull();
   });
 
   it("reads the kind of shot from the idea before the pillar", () => {
