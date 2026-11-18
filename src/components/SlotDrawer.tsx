@@ -9,6 +9,7 @@ import { ReelEditor } from "./ReelEditor";
 import { PostingPanel } from "./PostingPanel";
 import { CanvaPanel } from "./CanvaPanel";
 import { BrollPanel } from "./BrollPanel";
+import { BrollVideoPanel } from "./BrollVideoPanel";
 import { FitNote, SuggestedMedia } from "./MediaSuggestions";
 import { Thumb } from "./Thumb";
 import type { MediaLibraryState } from "../lib/mediaIndex";
@@ -25,6 +26,7 @@ export function SlotDrawer({ slot, cal, lib, onClose }: { slot: Slot; cal: Calen
   const [copied, setCopied] = useState(false);
   const [brollPhoto, setBrollPhoto] = useState<MediaRef | null>(null);
   const [choosingVideo, setChoosingVideo] = useState(false);
+  const [brollVideo, setBrollVideo] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => setDraft(slot), [slot]);
@@ -187,10 +189,13 @@ export function SlotDrawer({ slot, cal, lib, onClose }: { slot: Slot; cal: Calen
             </div>
           )}
           <div className="video-bar">
-            <button type="button" className="btn primary" onClick={() => (postPhotos.length === 1 ? startVideo(postPhotos[0]) : setChoosingVideo((v) => !v))}>
-              🎬 Create video from a photo
+            <button type="button" className="btn primary" onClick={() => setBrollVideo((v) => !v)} aria-expanded={brollVideo}>
+              🎬 Make a B-roll video for this post
             </button>
-            <span className="hint">Turns one photo into short, natural-looking clips for reels and stories.</span>
+            <button type="button" className="btn" onClick={() => (postPhotos.length === 1 ? startVideo(postPhotos[0]) : setChoosingVideo((v) => !v))}>
+              Clips from one photo
+            </button>
+            <span className="hint">Picks the lifestyle photos that fit the idea and films them like handheld footage.</span>
           </div>
           {choosingVideo && (
             <div className="broll">
@@ -210,6 +215,7 @@ export function SlotDrawer({ slot, cal, lib, onClose }: { slot: Slot; cal: Calen
               </div>
             </div>
           )}
+          {brollVideo && <BrollVideoPanel slot={draft} all={cal.slots} lib={lib} save={save} onClose={() => setBrollVideo(false)} />}
           {brollPhoto && <BrollPanel key={brollPhoto.id} slot={draft} photo={brollPhoto} save={save} onClose={() => setBrollPhoto(null)} />}
           <SuggestedMedia
             onVideo={startVideo}
