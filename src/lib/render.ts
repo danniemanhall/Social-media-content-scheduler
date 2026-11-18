@@ -2,6 +2,7 @@ import { FFmpeg, FFFSType } from "@ffmpeg/ffmpeg";
 import { fetchFile, toBlobURL } from "@ffmpeg/util";
 import { buildJob, isVideo, type JobInput, FONT_BODY, FONT_HEADING, LOGO_FILE } from "./reel";
 import { downloadFile } from "./drive";
+import { BROLL_MOVES, brollArgs, type BrollMove } from "./broll";
 import { getFile } from "./localMedia";
 import type { MediaRef, Storyboard } from "./types";
 
@@ -97,4 +98,39 @@ export async function renderReel(
   } finally {
     await ff.unmount("/in").catch(() => undefined);
   }
+}
+
+/**
+ * Turns one photo into short B-roll clips, one per camera move. The photo's
+ * pixels and colours are left as they are; only the framing moves.
+ */
+export async function renderBroll(photo: MediaRef, moves: BrollMove[], onProgress: (p: Progress) => void): Promise<{ move: BrollMove; video: Blob }[]> {
+  onProgress({ value: 0, label: "Loading the video engine (first time takes a moment)…" });
+  const ff = await getFFmpeg();
+  onProgress({ value: 0.05, label: `Fetching ${photo.name}…` });
+  const input = `broll-in${ext(photo)}`;
+  await ff.writeFile(input, new Uint8Array(await (await blobFor(photo)).arrayBuffer()));
+  const out: { move: BrollMove; video: Blob }[] = [];
+  const logs: string[] = [];
+  const onLog = ({ message }: { message: string }) => {
+    logs.push(message);
+    if (logs.length > 40) logs.shift();
+  };
+  ff.on("log", onLog);
+  try {
+    for (const [i, move] of moves.entries()) {
+      onProgress({ value: 0.08 + (0.9 * i) / moves.length, label: `Filming "${BROLL_MOVES[move].label.toLowerCase()}" (${i + 1} of ${moves.length})…` });
+      const file = `broll-${move}.mp4`;
+      const code = await ff.exec(brollArgs(input, move, file));
+      if (code !== 0) throw new Error(`The video engine stopped on "${BROLL_MOVES[move].label}". ${logs.slice(-3).join(" ")}`);
+      const data = (await ff.readFile(file)) as Uint8Array;
+      out.push({ move, video: new Blob([data], { type: "video/mp4" }) });
+      await ff.deleteFile(file).catch(() => undefined);
+    }
+  } finally {
+    ff.off("log", onLog);
+    await ff.deleteFile(input).catch(() => undefined);
+  }
+  onProgress({ value: 1, label: "Done" });
+  return out;
 }

@@ -139,6 +139,22 @@ main { padding: 24px; max-width: 1400px; margin: 0 auto; }
   position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100vw); z-index: 21;
   background: var(--ivory); box-shadow: -8px 0 30px rgba(51, 42, 34, 0.15); overflow-y: auto; padding: 22px 24px 40px;
 }
+/* The post editor opens as a full-screen window, with the media on the left and the words on the right. */
+.drawer.editor {
+  left: 0; width: auto; padding: 22px clamp(16px, 3vw, 40px) 40px;
+}
+@media (min-width: 900px) {
+  .drawer.editor { inset: 18px; border-radius: 14px; box-shadow: 0 12px 50px rgba(51, 42, 34, 0.25); }
+}
+.drawer.editor > header, .drawer.editor > .claude-note, .drawer.editor > .actions, .drawer.editor > .editor-cols { max-width: 1500px; margin-left: auto; margin-right: auto; }
+.drawer.editor > .claude-note { margin-bottom: 14px; }
+.editor-cols { display: grid; gap: 0 36px; }
+@media (min-width: 1000px) {
+  .editor-cols { grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr); }
+  .editor-side { border-left: 1px solid var(--line); padding-left: 36px; }
+  .drawer.editor .field textarea#caption { min-height: 260px; }
+}
+.drawer.editor .media-list { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 .drawer header { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
 .drawer .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 18px; }
 .chip { font-size: 12px; padding: 2px 9px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); }
@@ -267,3 +283,11 @@ a.btn { text-decoration: none; }
 .mthumb.fill { width: 100%; height: 100%; border: 0; border-radius: inherit; }
 .lib-item .img img, .media-item .img img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .media-item .img .mthumb.fill { position: absolute; inset: 0; } .media-item .img { position: relative; }
+.drawer.editor .suggest-row { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+/* B-roll from a photo */
+.media-item .broll-btn { color: var(--caramel, #a17a5e); margin-right: 10px; }
+.broll { margin-top: 12px; background: #fff; border: 1px solid var(--line); border-left: 3px solid var(--caramel, #a17a5e); border-radius: 8px; padding: 12px 14px; display: grid; gap: 10px; }
+.broll-head { display: flex; gap: 12px; align-items: flex-start; }
+.broll-thumb { width: 64px; aspect-ratio: 4 / 5; flex: none; }
+.broll-moves { display: grid; gap: 6px; }
+.broll-moves .hint { display: inline; }

@@ -358,6 +358,7 @@ export async function downloadFile(fileId: string): Promise<Blob> {
 
 export const REELS_FOLDER = "Roopip reels";
 export const CANVA_FOLDER = "Roopip Canva designs";
+export const BROLL_FOLDER = "Roopip B-roll";
 
 async function appFolder(folderName: string): Promise<string> {
   const q = `name = '${folderName}' and mimeType = '${FOLDER}' and trashed = false`;
