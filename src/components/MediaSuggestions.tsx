@@ -88,7 +88,14 @@ export function SuggestedMedia({ slot, all, lib, onAdd }: { slot: Slot; all: Slo
       <div className="label" style={{ marginTop: 10 }}>
         Suggested for this post
       </div>
-      {wanted && <div className="hint">The idea calls for a {SCENE_LABEL[wanted]}, so those come first.</div>}
+      {wanted &&
+        (suggestions.some((s) => s.scene === wanted) ? (
+          <div className="hint">The idea calls for a {SCENE_LABEL[wanted]}, so those come first.</div>
+        ) : (
+          <div className="hint warnText">
+            The idea calls for a {SCENE_LABEL[wanted]}, but none of the photos in the media folders look like one{lib.progress ? " yet (still checking the photos)" : ""}. These are the closest matches. Add a folder of {wanted === "lifestyle" ? "styled photos taken in real rooms" : `${SCENE_LABEL[wanted]}s`} on the Media tab to get better suggestions.
+          </div>
+        ))}
       {!connected && (
         <div className="hint">Connect Google Drive on the Media tab to see these photos.</div>
       )}

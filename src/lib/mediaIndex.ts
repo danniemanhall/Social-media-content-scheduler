@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BRAND } from "./brand";
-import { analysePixels, type IndexedMedia, type Look } from "./brandFit";
-import { downloadFile, driveConnected, listFolder } from "./drive";
+import { analysePixels, lookIsOld, type IndexedMedia, type Look } from "./brandFit";
+import { downloadFile, driveConnected, freshThumbnail, listFolder } from "./drive";
+import { useDriveConnected } from "./useDrive";
 import { getFile } from "./localMedia";
 import type { Store } from "./store";
 import type { MediaRef } from "./types";
@@ -100,9 +101,11 @@ export async function readLook(m: MediaRef & { size?: number }): Promise<Look | 
     if (!blob) return null;
     return blob.type.startsWith("video/") ? lookOfVideo(blob) : lookOfBlob(blob);
   }
-  if (m.thumbnail) {
+  // Saved thumbnail links expire after a few hours, so ask Drive for a fresh one.
+  const thumb = m.source === "drive" && driveConnected() ? ((await freshThumbnail(m.id).catch(() => null)) ?? m.thumbnail) : m.thumbnail;
+  if (thumb) {
     try {
-      const res = await fetch(m.thumbnail, { mode: "cors", credentials: "omit" });
+      const res = await fetch(thumb, { mode: "cors", credentials: "omit" });
       if (res.ok) return await lookOfBlob(await res.blob());
     } catch {
       /* thumbnails don't always allow this; fall back to the file itself */
@@ -173,6 +176,43 @@ export function useMediaLibrary(store: Store): MediaLibraryState {
     [store],
   );
 
+  /** Reads the look of every file that has none yet, or one from before the backdrop check. */
+  const readLooks = useCallback(
+    async (items: IndexedMedia[]) => {
+      const todo = items.filter((m) => (!looksRef.current[m.id] || lookIsOld(looksRef.current[m.id])) && (m.mimeType.startsWith("image/") || !!m.thumbnail));
+      const found: Record<string, Look> = {};
+      let done = 0;
+      for (const m of todo) {
+        setProgress(`Checking colours ${++done} of ${todo.length}…`);
+        try {
+          const look = await readLook(m);
+          if (look) found[m.id] = look;
+        } catch {
+          /* skip files that can't be read */
+        }
+        if (done % 20 === 0 && Object.keys(found).length) await saveLooks({ ...looksRef.current, ...found });
+      }
+      if (Object.keys(found).length) await saveLooks({ ...looksRef.current, ...found });
+    },
+    [saveLooks],
+  );
+
+  // Looks saved before the studio-backdrop check get read again once, in the
+  // background, as soon as Drive is connected, so suggestions can tell
+  // packshots from lifestyle photos without anyone rescanning.
+  const connected = useDriveConnected();
+  const upgraded = useRef(false);
+  useEffect(() => {
+    if (upgraded.current || running.current || !connected || !index?.items.length) return;
+    if (!index.items.some((m) => lookIsOld(looksRef.current[m.id]))) return;
+    upgraded.current = true;
+    running.current = true;
+    void readLooks(index.items).finally(() => {
+      running.current = false;
+      setProgress(null);
+    });
+  }, [connected, index, looks, readLooks]);
+
   const refresh = useCallback(async () => {
     if (running.current) return;
     running.current = true;
@@ -189,32 +229,19 @@ export function useMediaLibrary(store: Store): MediaLibraryState {
       setIndex(next);
       await store.setSetting(INDEX_KEY, next);
 
-      const todo = unique.filter((m) => !looksRef.current[m.id] && (m.mimeType.startsWith("image/") || !!m.thumbnail));
-      const found: Record<string, Look> = {};
-      let done = 0;
-      for (const m of todo) {
-        setProgress(`Checking colours ${++done} of ${todo.length}…`);
-        try {
-          const look = await readLook(m);
-          if (look) found[m.id] = look;
-        } catch {
-          /* skip files that can't be read */
-        }
-        if (done % 20 === 0 && Object.keys(found).length) await saveLooks({ ...looksRef.current, ...found });
-      }
-      if (Object.keys(found).length) await saveLooks({ ...looksRef.current, ...found });
+      await readLooks(unique);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       running.current = false;
       setProgress(null);
     }
-  }, [folders, store, saveLooks]);
+  }, [folders, store, readLooks]);
 
   const lookFor = useCallback(
     async (m: MediaRef) => {
       const known = looksRef.current[m.id];
-      if (known) return known;
+      if (known && !lookIsOld(known)) return known;
       try {
         const look = await readLook(m);
         if (look) await saveLooks({ ...looksRef.current, [m.id]: look });
