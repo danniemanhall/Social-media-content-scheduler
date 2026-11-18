@@ -23,7 +23,8 @@ export function SlotDrawer({ slot, cal, lib, onClose }: { slot: Slot; cal: Calen
   const [busy, setBusy] = useState(false);
   const [picking, setPicking] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [brollFor, setBrollFor] = useState<string | null>(null);
+  const [brollPhoto, setBrollPhoto] = useState<MediaRef | null>(null);
+  const [choosingVideo, setChoosingVideo] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => setDraft(slot), [slot]);
@@ -83,7 +84,11 @@ export function SlotDrawer({ slot, cal, lib, onClose }: { slot: Slot; cal: Calen
     if (next) setDraft(next);
   };
 
-  const brollPhoto = brollFor ? draft.media.find((m) => m.id === brollFor) : undefined;
+  const postPhotos = draft.media.filter((m) => m.mimeType.startsWith("image/"));
+  const startVideo = (m: MediaRef) => {
+    setChoosingVideo(false);
+    setBrollPhoto(m);
+  };
 
   const k = kindOf(draft);
 
@@ -170,8 +175,8 @@ export function SlotDrawer({ slot, cal, lib, onClose }: { slot: Slot; cal: Calen
                       {m.source === "local" && <div style={{ color: "var(--muted)" }}>Original on this device</div>}
                       <FitNote media={m} slot={draft} all={cal.slots} lib={lib} />
                       {m.mimeType.startsWith("image/") && (
-                        <button type="button" className="rm broll-btn" onClick={() => setBrollFor(m.id)} title="Turn this photo into short, natural B-roll clips">
-                          Make B-roll
+                        <button type="button" className="rm broll-btn" onClick={() => startVideo(m)} title="Turn this photo into short, natural video clips">
+                          🎬 Create video
                         </button>
                       )}
                       <button type="button" className="rm" onClick={() => save({ media: draft.media.filter((x) => x.id !== m.id) })}>Remove</button>
@@ -181,8 +186,33 @@ export function SlotDrawer({ slot, cal, lib, onClose }: { slot: Slot; cal: Calen
               })}
             </div>
           )}
-          {brollPhoto && <BrollPanel key={brollPhoto.id} slot={draft} photo={brollPhoto} save={save} onClose={() => setBrollFor(null)} />}
+          <div className="video-bar">
+            <button type="button" className="btn primary" onClick={() => (postPhotos.length === 1 ? startVideo(postPhotos[0]) : setChoosingVideo((v) => !v))}>
+              🎬 Create video from a photo
+            </button>
+            <span className="hint">Turns one photo into short, natural-looking clips for reels and stories.</span>
+          </div>
+          {choosingVideo && (
+            <div className="broll">
+              <b>Which photo?</b>
+              {postPhotos.length ? (
+                <div className="video-pick">
+                  {postPhotos.map((m) => (
+                    <button key={m.id} type="button" onClick={() => startVideo(m)} title={m.name}>
+                      <Thumb media={m} className="mthumb" />
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              <div className="hint">
+                {postPhotos.length ? "Or use " : "Add a photo to this post first, or use "}
+                <b>🎬 Create video</b> on any suggested photo below.
+              </div>
+            </div>
+          )}
+          {brollPhoto && <BrollPanel key={brollPhoto.id} slot={draft} photo={brollPhoto} save={save} onClose={() => setBrollPhoto(null)} />}
           <SuggestedMedia
+            onVideo={startVideo}
             slot={draft}
             all={cal.slots}
             lib={lib}

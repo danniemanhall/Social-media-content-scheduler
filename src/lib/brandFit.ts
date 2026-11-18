@@ -1,5 +1,6 @@
 import { BRAND } from "./brand";
 import type { Format, MediaRef, Pillar, Slot } from "./types";
+import { tagMatch, type MediaTags } from "./tags";
 
 /**
  * Brand fit: checks a photo's colours and light against the Roopip palette and
@@ -393,6 +394,8 @@ export interface Suggestion {
   /** The kind of photo this is, when it could be told. */
   scene: Scene | null;
   why: string[];
+  /** What's in the picture, when Claude has looked at it. */
+  text?: string;
 }
 
 /**
@@ -408,6 +411,7 @@ export function suggestMedia(
   lastUsed: Record<string, string | undefined>,
   today: string,
   limit = 8,
+  tags: Record<string, MediaTags | undefined> = {},
 ): Suggestion[] {
   const have = new Set(slot.media.map((m) => m.id));
   const productWords = slot.product ? words(slot.product).split(" ").map((w) => w.replace(/s$/, "")).filter((w) => w.length > 2) : [];
@@ -424,30 +428,40 @@ export function suggestMedia(
 
     const look = looks[m.id];
     const fit = look ? brandFit(look) : null;
-    score += fit ? fit.score * 0.5 : 30; // unknown look: middling
+    score += fit ? fit.score * 0.3 : 18; // unknown look: middling
     if (fit && fit.score < FIT_WARN) score -= 15; // clashes with the brand: keep it out of the top picks
 
-    const scene = sceneForMedia(m, look);
-    if (wanted && scene) {
-      if (scene === wanted) {
-        score += 35;
-        why.push(SCENE_LABEL[scene]);
-      } else if (wanted === "lifestyle" && scene === "product") {
-        score -= 30; // a studio packshot on a lifestyle idea is the main thing to avoid
-      } else if (wanted === "product" && scene === "lifestyle") {
-        score -= 8;
-      } else score -= 15;
-    }
+    const tagged = tags[m.id];
+    let scene: Scene | null;
+    if (tagged) {
+      // Claude has looked at this one: match what's actually in the picture.
+      scene = tagged.scene;
+      const match = tagMatch(tagged, slot, wanted, m.mimeType.startsWith("video/"));
+      score += match.score + 5;
+      why.push(...match.why);
+    } else {
+      scene = sceneForMedia(m, look);
+      if (wanted && scene) {
+        if (scene === wanted) {
+          score += 35;
+          why.push(SCENE_LABEL[scene]);
+        } else if (wanted === "lifestyle" && scene === "product") {
+          score -= 30; // a studio packshot on a lifestyle idea is the main thing to avoid
+        } else if (wanted === "product" && scene === "lifestyle") {
+          score -= 8;
+        } else score -= 15;
+      }
 
-    if (productWords.length && productWords.some((w) => text.includes(w))) {
-      score += 22;
-      why.push(slot.product!.toLowerCase());
+      if (productWords.length && productWords.some((w) => text.includes(w))) {
+        score += 22;
+        why.push(slot.product!.toLowerCase());
+      }
+      const matched = idea.filter((w) => text.includes(` ${w}`)).slice(0, 3);
+      if (matched.length) {
+        score += Math.min(18, matched.length * 7);
+        why.push(`"${matched[0]}"`);
+      } else if (pillarWords.some((w) => text.includes(w))) score += 5;
     }
-    const matched = idea.filter((w) => text.includes(` ${w}`)).slice(0, 3);
-    if (matched.length) {
-      score += Math.min(18, matched.length * 7);
-      why.push(`"${matched[0]}"`);
-    } else if (pillarWords.some((w) => text.includes(w))) score += 5;
 
     const video = m.mimeType.startsWith("video/");
     if (slot.format === "reel" && video) {
@@ -467,7 +481,7 @@ export function suggestMedia(
       else why.push("not used lately");
     } else why.push("never used");
 
-    out.push({ media: m, score: Math.round(score), fit, scene, why });
+    out.push({ media: m, score: Math.round(score), fit, scene, why, text: tagged?.text });
   }
   return out.sort((a, b) => b.score - a.score).slice(0, limit);
 }

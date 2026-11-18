@@ -6,6 +6,7 @@ import { useDriveConnected } from "./useDrive";
 import { getFile } from "./localMedia";
 import type { Store } from "./store";
 import type { MediaRef } from "./types";
+import { SHEETS_KEY, TAGS_KEY, type MediaTags, type TagSheet } from "./tags";
 
 /**
  * The media "brain": which Drive folders the app draws from, a list of every
@@ -33,6 +34,8 @@ const MAX_ANALYSE_BYTES = 25 * 1024 * 1024;
 export interface MediaIndex {
   at: string;
   items: IndexedMedia[];
+  /** The folders this scan covered, so a newly linked folder gets scanned automatically. */
+  folderIds?: string[];
 }
 
 /** Pulls a Drive folder id out of a pasted link, or returns null. */
@@ -129,6 +132,10 @@ export interface MediaLibraryState {
   refresh(): Promise<void>;
   /** The look of one file, reading and saving it if it's new. */
   lookFor(m: MediaRef): Promise<Look | null>;
+  /** What Claude saw in each file (see claude-runs/tag-media.md). */
+  tags: Record<string, MediaTags>;
+  /** Files waiting for Claude to look at them. */
+  untagged: number;
 }
 
 export function useMediaLibrary(store: Store): MediaLibraryState {
@@ -137,23 +144,36 @@ export function useMediaLibrary(store: Store): MediaLibraryState {
   const [looks, setLooks] = useState<Record<string, Look>>({});
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tags, setTags] = useState<Record<string, MediaTags>>({});
+  const [sheets, setSheets] = useState<TagSheet[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const looksRef = useRef(looks);
   looksRef.current = looks;
+  const sheetsRef = useRef(sheets);
+  sheetsRef.current = sheets;
+  const tagsRef = useRef(tags);
+  tagsRef.current = tags;
   const running = useRef(false);
 
   useEffect(() => {
     void (async () => {
       try {
-        const [f, i, l] = await Promise.all([
+        const [f, i, l, t, sh] = await Promise.all([
           store.getSetting<MediaFolder[]>(FOLDERS_KEY),
           store.getSetting<MediaIndex>(INDEX_KEY),
           store.getSetting<Record<string, Look>>(LOOKS_KEY),
+          store.getSetting<Record<string, MediaTags>>(TAGS_KEY),
+          store.getSetting<{ sheets: TagSheet[] }>(SHEETS_KEY),
         ]);
         if (f?.length) setFoldersState(f);
         if (i) setIndex(i);
         if (l) setLooks(l);
+        if (t) setTags(t);
+        if (sh?.sheets) setSheets(sh.sheets);
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setLoaded(true);
       }
     })();
   }, [store]);
@@ -172,6 +192,7 @@ export function useMediaLibrary(store: Store): MediaLibraryState {
     async (f: MediaFolder[]) => {
       setFoldersState(f);
       await store.setSetting(FOLDERS_KEY, f);
+      housekept.current = false; // a new folder gets scanned on the next pass
     },
     [store],
   );
@@ -197,21 +218,26 @@ export function useMediaLibrary(store: Store): MediaLibraryState {
     [saveLooks],
   );
 
-  // Looks saved before the studio-backdrop check get read again once, in the
-  // background, as soon as Drive is connected, so suggestions can tell
-  // packshots from lifestyle photos without anyone rescanning.
-  const connected = useDriveConnected();
-  const upgraded = useRef(false);
-  useEffect(() => {
-    if (upgraded.current || running.current || !connected || !index?.items.length) return;
-    if (!index.items.some((m) => lookIsOld(looksRef.current[m.id]))) return;
-    upgraded.current = true;
-    running.current = true;
-    void readLooks(index.items).finally(() => {
-      running.current = false;
-      setProgress(null);
-    });
-  }, [connected, index, looks, readLooks]);
+  /** Makes contact sheets of anything Claude hasn't looked at yet, so the next Claude run can tag them. */
+  const prepareSheets = useCallback(
+    async (items: IndexedMedia[]) => {
+      const { makeSheets, needsSheet } = await import("./sheets");
+      const pending = needsSheet(items, tagsRef.current, sheetsRef.current);
+      if (!pending.length) return;
+      await makeSheets(
+        pending,
+        async (sheet) => {
+          // Merge with what's saved, so a Claude run marking sheets done isn't undone.
+          const saved = (await store.getSetting<{ sheets: TagSheet[] }>(SHEETS_KEY))?.sheets ?? [];
+          const next = [...saved.filter((x) => x.fileId !== sheet.fileId), sheet];
+          setSheets(next);
+          await store.setSetting(SHEETS_KEY, { sheets: next });
+        },
+        setProgress,
+      );
+    },
+    [store],
+  );
 
   const refresh = useCallback(async () => {
     if (running.current) return;
@@ -225,18 +251,47 @@ export function useMediaLibrary(store: Store): MediaLibraryState {
       }
       const seen = new Set<string>();
       const unique = items.filter((m) => !seen.has(m.id) && seen.add(m.id));
-      const next: MediaIndex = { at: new Date().toISOString(), items: unique };
+      const next: MediaIndex = { at: new Date().toISOString(), items: unique, folderIds: folders.map((f) => f.id) };
       setIndex(next);
       await store.setSetting(INDEX_KEY, next);
 
       await readLooks(unique);
+      await prepareSheets(unique).catch(() => undefined);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       running.current = false;
       setProgress(null);
     }
-  }, [folders, store, readLooks]);
+  }, [folders, store, readLooks, prepareSheets]);
+
+  // Housekeeping once Drive is connected, so nobody has to remember to click
+  // Scan: scan again when a folder was added since the last scan, re-read old
+  // colour checks, and prepare contact sheets of new photos for Claude.
+  const connected = useDriveConnected();
+  const housekept = useRef(false);
+  useEffect(() => {
+    if (housekept.current || running.current || !loaded || !connected) return;
+    housekept.current = true;
+    const scanned = new Set(index?.folderIds ?? []);
+    const missing = !index || folders.some((f) => !scanned.has(f.id) && !index.items.some((m) => m.path === f.name || m.path?.startsWith(`${f.name}/`)));
+    if (missing) {
+      void refresh();
+      return;
+    }
+    running.current = true;
+    void (async () => {
+      try {
+        if (index.items.some((m) => lookIsOld(looksRef.current[m.id]))) await readLooks(index.items);
+        await prepareSheets(index.items);
+      } catch {
+        /* try again next visit */
+      } finally {
+        running.current = false;
+        setProgress(null);
+      }
+    })();
+  }, [loaded, connected, index, folders, refresh, readLooks, prepareSheets]);
 
   const lookFor = useCallback(
     async (m: MediaRef) => {
@@ -253,5 +308,6 @@ export function useMediaLibrary(store: Store): MediaLibraryState {
     [saveLooks],
   );
 
-  return { folders, index, looks, progress, error, setFolders, refresh, lookFor };
+  const untagged = index ? index.items.filter((m) => !tags[m.id]).length : 0;
+  return { folders, index, looks, progress, error, setFolders, refresh, lookFor, tags, untagged };
 }

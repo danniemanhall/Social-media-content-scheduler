@@ -295,3 +295,10 @@ a.btn { text-decoration: none; }
 .crumbs.path { margin: 4px 0 10px; display: flex; align-items: center; gap: 4px; font-size: 13px; }
 .drive-search { width: 100%; border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 8px 10px; margin: 4px 0 10px; }
 .lib-item .mthumb.img { border: 0; border-radius: 0; }
+.video-bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 12px 0 4px; }
+.video-pick { display: flex; gap: 8px; flex-wrap: wrap; }
+.video-pick button { border: 2px solid transparent; padding: 0; background: none; border-radius: 8px; width: 90px; }
+.video-pick button:hover { border-color: var(--caramel, #a17a5e); }
+.video-pick .mthumb { aspect-ratio: 4 / 5; }
+.suggest-item .seen { font-size: 12px; color: var(--espresso, #332a22); line-height: 1.35; }
+.suggest-item .video-btn { background: var(--paper); }

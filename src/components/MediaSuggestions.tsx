@@ -64,13 +64,26 @@ export function FitNote({ media, slot, all, lib }: { media: MediaRef; slot: Slot
 }
 
 /** Best-matching photos and clips from the media folders, one click to add. */
-export function SuggestedMedia({ slot, all, lib, onAdd }: { slot: Slot; all: Slot[]; lib: MediaLibraryState; onAdd: (m: MediaRef) => void }) {
+export function SuggestedMedia({
+  slot,
+  all,
+  lib,
+  onAdd,
+  onVideo,
+}: {
+  slot: Slot;
+  all: Slot[];
+  lib: MediaLibraryState;
+  onAdd: (m: MediaRef) => void;
+  /** Make B-roll from this photo. */
+  onVideo?: (m: MediaRef) => void;
+}) {
   const [showAll, setShowAll] = useState(false);
   const connected = useDriveConnected();
   const suggestions = useMemo(() => {
     if (!lib.index?.items.length) return [];
-    return suggestMedia(slot, lib.index.items, lib.looks, lastUsedMap(all, slot.id), slot.date, 12);
-  }, [slot, all, lib.index, lib.looks]);
+    return suggestMedia(slot, lib.index.items, lib.looks, lastUsedMap(all, slot.id), slot.date, 12, lib.tags);
+  }, [slot, all, lib.index, lib.looks, lib.tags]);
 
   if (!lib.index) {
     return (
@@ -99,6 +112,11 @@ export function SuggestedMedia({ slot, all, lib, onAdd }: { slot: Slot; all: Slo
       {!connected && (
         <div className="hint">Connect Google Drive on the Media tab to see these photos.</div>
       )}
+      {lib.untagged > 0 && (
+        <div className="hint">
+          Claude has looked at {lib.index.items.length - lib.untagged} of {lib.index.items.length} photos and videos so far. The rest are matched on their names and colours until Claude has seen them; Claude looks at new ones on each run (about 7 AM, 12 PM and 8 PM).
+        </div>
+      )}
       <div className="suggest-row">
         {shown.map((s) => {
           const fitOk = s.fit && s.fit.score >= FIT_OK;
@@ -109,6 +127,7 @@ export function SuggestedMedia({ slot, all, lib, onAdd }: { slot: Slot; all: Slo
                 <Thumb media={s.media} className="img" />
               </a>
               <div className="name" title={`${s.media.path ?? ""}/${s.media.name}`}>{s.media.name.replace(/\.[a-z0-9]+$/i, "")}</div>
+              {s.text && <div className="seen" title="What Claude saw in this picture">{s.text}</div>}
               <div className="why">{s.why.join(" · ")}</div>
               {s.fit && (
                 <div className={fitOk ? "ok" : s.fit.score >= FIT_WARN ? "warnText" : "bad"} title={reasons.join(" ")}>
@@ -118,6 +137,11 @@ export function SuggestedMedia({ slot, all, lib, onAdd }: { slot: Slot; all: Slo
               <button type="button" className="btn small" onClick={() => onAdd(s.media)}>
                 Add to post
               </button>
+              {onVideo && s.media.mimeType.startsWith("image/") && (
+                <button type="button" className="btn small video-btn" onClick={() => onVideo(s.media)}>
+                  🎬 Create video
+                </button>
+              )}
             </div>
           );
         })}

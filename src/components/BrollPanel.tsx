@@ -48,7 +48,7 @@ export function BrollPanel({ slot, photo, save, onClose }: { slot: Slot; photo: 
       <div className="broll-head">
         <Thumb media={photo} className="mthumb broll-thumb" />
         <div style={{ flex: 1 }}>
-          <b>B-roll from {photo.name.replace(/\.[a-z0-9]+$/i, "")}</b>
+          <b>Create video from {photo.name.replace(/\.[a-z0-9]+$/i, "")}</b>
           <div className="hint">
             {BROLL_SECONDS}-second vertical clips that move through the photo like someone filming it by hand. Nothing is added or relit: same photo, same light, just a slow, natural camera move.
           </div>
