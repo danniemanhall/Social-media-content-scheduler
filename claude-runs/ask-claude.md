@@ -1,12 +1,13 @@
 # Ask Claude run
 
-This run handles three kinds of request, in this order. All three count as requests, so check all three before deciding there's nothing to do:
+This run handles four kinds of request, in this order. All four count as requests, so check all four before deciding there's nothing to do:
 
 1. **Canva exports** that people asked for on a post (below, "Canva exports").
 2. **Ask Claude requests:** people tick **Ask Claude to help with this one** on a slot and say what they want in its notes. Answer every such request (steps 1 to 6 just below).
 3. **Brand checks** on media added to upcoming posts (below, "Brand checks").
+4. **Tagging photos:** look at new contact sheets of photos and videos, and write what's in each one, so suggestions match post ideas. Follow `tag-media.md`. There's work to do when `tagSheets` has a sheet without `done: true`.
 
-If none of the three has anything to do, stop and say "No requests."
+If none of the four has anything to do, stop and say "No requests."
 
 1. Read `README.md` and `voice.md` in this folder.
 2. Find requests:
