@@ -1,5 +1,5 @@
 import { BRAND } from "./brand";
-import type { Format, MediaRef, Slot } from "./types";
+import type { Format, MediaRef, Pillar, Slot } from "./types";
 
 /**
  * Brand fit: checks a photo's colours and light against the Roopip palette and
@@ -247,6 +247,99 @@ function words(s: string) {
   return s.toLowerCase().replace(/[_\-./]+/g, " ");
 }
 
+/** The kind of photo a post calls for, or a photo is. */
+export type Scene = "lifestyle" | "product" | "process" | "detail";
+
+export const SCENE_LABEL: Record<Scene, string> = {
+  lifestyle: "lifestyle shot",
+  product: "product shot",
+  process: "making-of shot",
+  detail: "close-up",
+};
+
+/** Words in a post's idea, or a photo's folder and file name, that point to each kind of shot. */
+const SCENE_WORDS: Record<Scene, string[]> = {
+  lifestyle: [
+    "lifestyle", "styled", "styling", "in use", "in situ", "home", "room", "table", "tablescape", "dining", "dinner", "lunch",
+    "breakfast", "brunch", "coffee", "tea", "kitchen", "lounge", "living", "sofa", "couch", "bed", "bedroom", "bathroom",
+    "shelf", "shelves", "mantel", "entrance", "hallway", "patio", "garden", "outdoor", "picnic", "beach", "guests", "hosting",
+    "family", "cosy", "cozy", "setting", "interior", "decor", "décor", "christmas tree", "festive table", "window", "morning",
+    "evening", "sunday", "summer", "holiday", "real home", "everyday",
+  ],
+  product: [
+    "product shot", "packshot", "pack shot", "flat lay", "flatlay", "white background", "studio", "colourway", "colorway",
+    "colours", "colors", "range", "line up", "lineup", "catalogue", "catalog", "new in", "launch", "price", "sizes", "shop",
+  ],
+  process: [
+    "hands", "making", "maker", "weaving", "weave", "knot", "knotting", "coil", "coiling", "stitch", "sewing", "dye",
+    "dyeing", "workshop", "behind the scenes", "bts", "process", "craftsmanship",
+  ],
+  detail: ["close up", "close-up", "closeup", "detail", "details", "texture", "macro", "stitching", "fibre", "fiber", "weave detail"],
+};
+
+const PILLAR_SCENE: Partial<Record<Pillar, Scene>> = {
+  Lifestyle: "lifestyle",
+  Product: "product",
+  Craftsmanship: "process",
+  Education: "detail",
+};
+
+function sceneHits(text: string): Record<Scene, number> {
+  const t = ` ${words(text)} `;
+  const hits = { lifestyle: 0, product: 0, process: 0, detail: 0 } as Record<Scene, number>;
+  for (const scene of Object.keys(SCENE_WORDS) as Scene[]) {
+    for (const w of SCENE_WORDS[scene]) if (t.includes(` ${w} `) || (w.length > 5 && t.includes(w))) hits[scene]++;
+  }
+  return hits;
+}
+
+function topScene(hits: Record<Scene, number>): Scene | null {
+  let best: Scene | null = null;
+  for (const s of Object.keys(hits) as Scene[]) if (hits[s] > 0 && (!best || hits[s] > hits[best])) best = s;
+  return best;
+}
+
+/**
+ * What kind of photo the post's idea asks for: read from the title, the idea
+ * and the shot list first, and the pillar only when those don't say.
+ */
+export function sceneForSlot(slot: Pick<Slot, "pillar" | "title"> & Partial<Pick<Slot, "prompt" | "shots">>): Scene | null {
+  const fromIdea = topScene(sceneHits([slot.title, slot.prompt ?? "", ...(slot.shots ?? [])].join(" . ")));
+  return fromIdea ?? PILLAR_SCENE[slot.pillar] ?? null;
+}
+
+/** Share of the image that is plain white backdrop (0-1). */
+export function whiteShare(look: Look): number {
+  let w = 0;
+  for (const c of look.colours) {
+    const lab = labOf(c.hex);
+    if (lab[0] > 92 && Math.hypot(lab[1], lab[2]) < 6) w += c.share;
+  }
+  return w;
+}
+
+/**
+ * What kind of photo a file is: from its folder and file name when they say,
+ * otherwise from its colours (a mostly white backdrop is a studio product shot,
+ * anything else is a styled or lifestyle photo).
+ */
+export function sceneForMedia(m: Pick<IndexedMedia, "name" | "path">, look: Look | undefined): Scene | null {
+  const named = topScene(sceneHits(`${m.path ?? ""} ${m.name.replace(/\.[a-z0-9]+$/i, "")}`));
+  if (named) return named;
+  if (!look) return null;
+  return whiteShare(look) > 0.5 ? "product" : "lifestyle";
+}
+
+const STOP = new Set(
+  "about after again also and are around back been before being but can come could each every from have here into just like look made make more most much need only other our over same see show some such than that the their them then there these they this those through time very want what when where which while with your post photo photos video shot shots".split(" "),
+);
+
+/** Distinct, meaningful words from the post's idea, for matching folder and file names. */
+function ideaWords(slot: Pick<Slot, "title"> & Partial<Pick<Slot, "prompt" | "shots">>): string[] {
+  const all = words([slot.title, slot.prompt ?? "", ...(slot.shots ?? [])].join(" ")).replace(/[^a-z\s]/g, " ").split(/\s+/);
+  return [...new Set(all.filter((w) => w.length > 3 && !STOP.has(w)).map((w) => w.replace(/s$/, "")))];
+}
+
 /** True when a file suits the slot's format at all (videos for reels, and so on). */
 export function suitsFormat(format: Format, m: Pick<MediaRef, "mimeType" | "width" | "height">): boolean {
   const video = m.mimeType.startsWith("video/");
@@ -264,16 +357,19 @@ export interface Suggestion {
   media: IndexedMedia;
   score: number;
   fit: Fit | null;
+  /** The kind of photo this is, when it could be told. */
+  scene: Scene | null;
   why: string[];
 }
 
 /**
- * Ranks media for a slot: brand fit first, then how well the file and folder
- * names match the post's product and pillar, the right shape for the format,
- * and whether it was used recently.
+ * Ranks media for a slot. First, does it match the kind of shot the idea asks
+ * for (a lifestyle idea wants a styled photo in a real setting, not a studio
+ * packshot)? Then the product, words from the idea in the folder and file
+ * names, brand fit, the right shape for the format, and recent use.
  */
 export function suggestMedia(
-  slot: Pick<Slot, "id" | "format" | "pillar" | "product" | "title" | "media">,
+  slot: Pick<Slot, "id" | "format" | "pillar" | "product" | "title" | "media"> & Partial<Pick<Slot, "prompt" | "shots">>,
   library: IndexedMedia[],
   looks: Record<string, Look | undefined>,
   lastUsed: Record<string, string | undefined>,
@@ -283,27 +379,42 @@ export function suggestMedia(
   const have = new Set(slot.media.map((m) => m.id));
   const productWords = slot.product ? words(slot.product).split(" ").map((w) => w.replace(/s$/, "")).filter((w) => w.length > 2) : [];
   const pillarWords = WORDS[slot.pillar] ?? [];
-  const titleWords = words(slot.title).split(" ").filter((w) => w.length > 4);
+  const wanted = sceneForSlot(slot);
+  const idea = ideaWords(slot);
 
   const out: Suggestion[] = [];
   for (const m of library) {
     if (have.has(m.id) || !suitsFormat(slot.format, m)) continue;
-    const text = words(`${m.path ?? ""} ${m.name}`);
+    const text = ` ${words(`${m.path ?? ""} ${m.name.replace(/\.[a-z0-9]+$/i, "")}`)} `;
     const why: string[] = [];
     let score = 0;
 
     const look = looks[m.id];
     const fit = look ? brandFit(look) : null;
     score += fit ? fit.score * 0.5 : 30; // unknown look: middling
+    if (fit && fit.score < FIT_WARN) score -= 15; // clashes with the brand: keep it out of the top picks
+
+    const scene = sceneForMedia(m, look);
+    if (wanted && scene) {
+      if (scene === wanted) {
+        score += 35;
+        why.push(SCENE_LABEL[scene]);
+      } else if (wanted === "lifestyle" && scene === "product") {
+        score -= 30; // a studio packshot on a lifestyle idea is the main thing to avoid
+      } else if (wanted === "product" && scene === "lifestyle") {
+        score -= 8;
+      } else score -= 15;
+    }
 
     if (productWords.length && productWords.some((w) => text.includes(w))) {
-      score += 25;
+      score += 22;
       why.push(slot.product!.toLowerCase());
     }
-    if (pillarWords.some((w) => text.includes(w))) {
-      score += 8;
-      why.push(slot.pillar.toLowerCase());
-    } else if (titleWords.some((w) => text.includes(w))) score += 6;
+    const matched = idea.filter((w) => text.includes(` ${w}`)).slice(0, 3);
+    if (matched.length) {
+      score += Math.min(18, matched.length * 7);
+      why.push(`"${matched[0]}"`);
+    } else if (pillarWords.some((w) => text.includes(w))) score += 5;
 
     const video = m.mimeType.startsWith("video/");
     if (slot.format === "reel" && video) {
@@ -323,7 +434,7 @@ export function suggestMedia(
       else why.push("not used lately");
     } else why.push("never used");
 
-    out.push({ media: m, score: Math.round(score), fit, why });
+    out.push({ media: m, score: Math.round(score), fit, scene, why });
   }
   return out.sort((a, b) => b.score - a.score).slice(0, limit);
 }

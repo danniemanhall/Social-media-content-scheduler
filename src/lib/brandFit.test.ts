@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analysePixels, brandFit, FIT_OK, FIT_WARN, gridClash, lastUsedMap, suggestMedia, type IndexedMedia, type Look } from "./brandFit";
+import { analysePixels, brandFit, FIT_OK, FIT_WARN, gridClash, lastUsedMap, sceneForSlot, suggestMedia, type IndexedMedia, type Look } from "./brandFit";
 import type { Slot } from "./types";
 
 /** Builds RGBA pixels from [colour, share] pairs, with a little noise like a real photo. */
@@ -88,8 +88,31 @@ describe("media suggestions", () => {
   });
 
   it("offers videos first for reels", () => {
-    const got = suggestMedia({ ...slot, format: "reel", pillar: "Craftsmanship", product: undefined }, lib, looks, {}, "2026-12-01");
+    const got = suggestMedia({ ...slot, format: "reel", pillar: "Craftsmanship", product: undefined, title: "From rope to bowl", prompt: "Hands coiling rope in the workshop" }, lib, looks, {}, "2026-12-01");
     expect(got[0].media.id).toBe("d");
+  });
+
+  it("gives a lifestyle idea styled photos, not studio packshots", () => {
+    const studio: Look = { colours: [{ hex: "#fbfbfb", share: 0.7 }, { hex: "#c9b49a", share: 0.3 }], brightness: 0.9, warmth: 0.02, saturation: 0.08 };
+    const lifeLib: IndexedMedia[] = [
+      { id: "pack", source: "drive", name: "placemat-sand.jpg", mimeType: "image/jpeg", path: "Product Photos/Placemats", width: 1080, height: 1350 },
+      { id: "life", source: "drive", name: "IMG_3302.jpg", mimeType: "image/jpeg", path: "Shoots/Placemats", width: 1080, height: 1350 },
+      { id: "named", source: "drive", name: "sunday-lunch-table.jpg", mimeType: "image/jpeg", path: "Shoots", width: 1080, height: 1350 },
+    ];
+    const lifeLooks: Record<string, Look> = { pack: studio, life: roopipPhoto, named: roopipPhoto };
+    const idea = { ...slot, pillar: "Product" as const, title: "Placemats at Sunday lunch", prompt: "Styled table with guests, placemats in use at a long lunch." };
+    expect(sceneForSlot(idea)).toBe("lifestyle");
+    const got = suggestMedia(idea, lifeLib, lifeLooks, {}, "2026-12-01");
+    expect(got.at(-1)!.media.id).toBe("pack");
+    expect(got.slice(0, 2).map((g) => g.media.id).sort()).toEqual(["life", "named"]);
+    expect(got[0].why).toContain("lifestyle shot");
+    expect(got.find((g) => g.media.id === "named")!.why).toContain('"sunday"');
+  });
+
+  it("reads the kind of shot from the idea before the pillar", () => {
+    expect(sceneForSlot({ pillar: "Lifestyle", title: "Our range", prompt: "Flat lay of every colourway on white background" })).toBe("product");
+    expect(sceneForSlot({ pillar: "Craftsmanship", title: "Behind the bowl" })).toBe("process");
+    expect(sceneForSlot({ pillar: "Community", title: "Thank you" })).toBeNull();
   });
 
   it("finds the last date each file was used", () => {

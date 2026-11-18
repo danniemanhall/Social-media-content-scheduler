@@ -8,6 +8,7 @@ import { MediaPicker } from "./MediaPicker";
 import { ReelEditor } from "./ReelEditor";
 import { PostingPanel } from "./PostingPanel";
 import { CanvaPanel } from "./CanvaPanel";
+import { BrollPanel } from "./BrollPanel";
 import { FitNote, SuggestedMedia } from "./MediaSuggestions";
 import { Thumb } from "./Thumb";
 import type { MediaLibraryState } from "../lib/mediaIndex";
@@ -22,6 +23,7 @@ export function SlotDrawer({ slot, cal, lib, onClose }: { slot: Slot; cal: Calen
   const [busy, setBusy] = useState(false);
   const [picking, setPicking] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [brollFor, setBrollFor] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => setDraft(slot), [slot]);
@@ -81,12 +83,14 @@ export function SlotDrawer({ slot, cal, lib, onClose }: { slot: Slot; cal: Calen
     if (next) setDraft(next);
   };
 
+  const brollPhoto = brollFor ? draft.media.find((m) => m.id === brollFor) : undefined;
+
   const k = kindOf(draft);
 
   return (
     <>
       <div className="scrim" onClick={onClose} />
-      <aside className="drawer" role="dialog" aria-label={draft.title}>
+      <aside className="drawer editor" role="dialog" aria-modal="true" aria-label={draft.title}>
         <header>
           <div style={{ flex: 1 }}>
             <h2>{draft.title}</h2>
@@ -112,6 +116,8 @@ export function SlotDrawer({ slot, cal, lib, onClose }: { slot: Slot; cal: Calen
           </div>
         )}
 
+        <div className="editor-cols">
+        <div className="editor-main">
         <div className="field">
           <div className="label">The idea</div>
           <div className="prompt">{draft.prompt}</div>
@@ -163,6 +169,11 @@ export function SlotDrawer({ slot, cal, lib, onClose }: { slot: Slot; cal: Calen
                       {check && <div className={check.ok ? "ok" : "bad"}>{check.message}</div>}
                       {m.source === "local" && <div style={{ color: "var(--muted)" }}>Original on this device</div>}
                       <FitNote media={m} slot={draft} all={cal.slots} lib={lib} />
+                      {m.mimeType.startsWith("image/") && (
+                        <button type="button" className="rm broll-btn" onClick={() => setBrollFor(m.id)} title="Turn this photo into short, natural B-roll clips">
+                          Make B-roll
+                        </button>
+                      )}
                       <button type="button" className="rm" onClick={() => save({ media: draft.media.filter((x) => x.id !== m.id) })}>Remove</button>
                     </div>
                   </div>
@@ -170,6 +181,7 @@ export function SlotDrawer({ slot, cal, lib, onClose }: { slot: Slot; cal: Calen
               })}
             </div>
           )}
+          {brollPhoto && <BrollPanel key={brollPhoto.id} slot={draft} photo={brollPhoto} save={save} onClose={() => setBrollFor(null)} />}
           <SuggestedMedia
             slot={draft}
             all={cal.slots}
@@ -211,6 +223,8 @@ export function SlotDrawer({ slot, cal, lib, onClose }: { slot: Slot; cal: Calen
           </div>
         )}
 
+        </div>
+        <div className="editor-side">
         <div className="field">
           <label htmlFor="caption">Caption</label>
           <textarea id="caption" value={draft.caption} onChange={(e) => setDraft({ ...draft, caption: e.target.value })} onBlur={() => save({ caption: draft.caption })} />
@@ -291,6 +305,9 @@ export function SlotDrawer({ slot, cal, lib, onClose }: { slot: Slot; cal: Calen
         <div className="field">
           <label htmlFor="notes">Notes</label>
           <textarea id="notes" style={{ minHeight: 70 }} placeholder={draft.askClaude ? "What should Claude do?" : ""} value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} onBlur={() => save({ notes: draft.notes })} />
+        </div>
+
+        </div>
         </div>
 
         <div className="actions">

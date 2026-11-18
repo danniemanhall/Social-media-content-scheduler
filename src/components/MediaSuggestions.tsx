@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { brandFit, FIT_OK, FIT_WARN, gridClash, lastUsedMap, suggestMedia, type Look } from "../lib/brandFit";
+import { brandFit, FIT_OK, FIT_WARN, gridClash, lastUsedMap, SCENE_LABEL, sceneForSlot, suggestMedia, type Look } from "../lib/brandFit";
 import { useDriveConnected } from "../lib/useDrive";
 import type { MediaLibraryState } from "../lib/mediaIndex";
 import type { MediaRef, Slot } from "../lib/types";
@@ -80,13 +80,15 @@ export function SuggestedMedia({ slot, all, lib, onAdd }: { slot: Slot; all: Slo
     );
   }
   if (!suggestions.length) return null;
-  const FIRST = 4;
+  const wanted = sceneForSlot(slot);
+  const FIRST = 6;
   const shown = showAll ? suggestions : suggestions.slice(0, FIRST);
   return (
     <div className="suggest">
       <div className="label" style={{ marginTop: 10 }}>
         Suggested for this post
       </div>
+      {wanted && <div className="hint">The idea calls for a {SCENE_LABEL[wanted]}, so those come first.</div>}
       {!connected && (
         <div className="hint">Connect Google Drive on the Media tab to see these photos.</div>
       )}
