@@ -49,7 +49,7 @@ function Shell({ store, email }: { store: Store; email: string | null }) {
     <>
       <header className="app-header">
         <div className="brand">
-          <span className="word">Roopip</span>
+          <img className="logo" src="/roopip-logo.png" alt="Roopip" width="140" height="31" />
           <span className="sub">Content calendar</span>
         </div>
         <nav className="tabs">

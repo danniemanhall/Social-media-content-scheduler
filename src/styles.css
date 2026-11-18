@@ -251,3 +251,6 @@ table.ideas th { background: var(--paper); font-weight: 600; color: var(--muted)
 a.btn { text-decoration: none; }
 .field .hint, .canva .hint { font-size: 13px; color: var(--muted); }
 .canva-form input, .canva-form select { font: inherit; padding: 8px 10px; border: 1px solid var(--line, #d8cfc2); border-radius: 8px; background: #fff; }
+.brand .logo { height: 31px; width: auto; display: block; }
+.brand { align-items: center; }
+.ig-avatar { object-fit: cover; border: 1px solid var(--line, #d8cfc2); }

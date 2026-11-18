@@ -1,6 +1,6 @@
 import { FFmpeg, FFFSType } from "@ffmpeg/ffmpeg";
 import { fetchFile, toBlobURL } from "@ffmpeg/util";
-import { buildJob, isVideo, type JobInput, FONT_BODY, FONT_HEADING } from "./reel";
+import { buildJob, isVideo, type JobInput, FONT_BODY, FONT_HEADING, LOGO_FILE } from "./reel";
 import { downloadFile } from "./drive";
 import { getFile } from "./localMedia";
 import type { MediaRef, Storyboard } from "./types";
@@ -24,6 +24,7 @@ function getFFmpeg(): Promise<FFmpeg> {
     await ff.createDir("fonts");
     await ff.writeFile(FONT_HEADING, await fetchFile("/fonts/CormorantGaramond.ttf"));
     await ff.writeFile(FONT_BODY, await fetchFile("/fonts/DMSans.ttf"));
+    await ff.writeFile(LOGO_FILE, await fetchFile("/roopip-logo.png"));
     return ff;
   })().catch((e) => {
     loaded = null;

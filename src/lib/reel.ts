@@ -84,6 +84,8 @@ export interface RenderJob {
 
 export const FONT_HEADING = "fonts/CormorantGaramond.ttf";
 export const FONT_BODY = "fonts/DMSans.ttf";
+/** The Roopip wordmark (public/roopip-logo.png), copied in for the end card. */
+export const LOGO_FILE = "fonts/roopip-logo.png";
 
 const IVORY = "0xF3F0E9";
 const ESPRESSO = "0x332A22";
@@ -167,16 +169,19 @@ export function buildJob(sb: Storyboard, inputs: Record<string, JobInput>, music
 
   if (sb.endCard) {
     const d = END_CARD_SECONDS;
-    texts["end.txt"] = "ROOPIP";
     texts["endsub.txt"] = (sb.endText ?? "Handmade in Knysna").trim() || " ";
-    const vf = [
-      `drawtext=fontfile=${FONT_HEADING}:textfile=end.txt:fontcolor=${ESPRESSO}:fontsize=150:x=(w-text_w)/2:y=(h-text_h)/2-60`,
-      `drawtext=fontfile=${FONT_BODY}:textfile=endsub.txt:fontcolor=${CARAMEL}:fontsize=44:x=(w-text_w)/2:y=h/2+70`,
-      "fade=t=in:st=0:d=0.5",
-      `fade=t=out:st=${fmt(d - 0.6)}:d=0.6`,
-      "format=yuv420p",
-    ].join(",");
-    steps.push(["-y", "-f", "lavfi", "-i", `color=c=${IVORY}:s=${W}x${H}:r=${FPS}:d=${d}`, "-vf", vf, "-t", fmt(d), ...ENCODE, "end.mp4"]);
+    // The real Roopip wordmark, centred on warm ivory, with the line under it.
+    const fc = [
+      `[1:v]scale=760:-1,format=rgba[logo]`,
+      `[0:v][logo]overlay=(W-w)/2:(H-h)/2-90:shortest=1,` +
+        `drawtext=fontfile=${FONT_BODY}:textfile=endsub.txt:fontcolor=${CARAMEL}:fontsize=44:x=(w-text_w)/2:y=h/2+70,` +
+        `fade=t=in:st=0:d=0.5,fade=t=out:st=${fmt(d - 0.6)}:d=0.6,format=yuv420p[v]`,
+    ].join(";");
+    steps.push([
+      "-y", "-f", "lavfi", "-i", `color=c=${IVORY}:s=${W}x${H}:r=${FPS}:d=${d}`,
+      "-loop", "1", "-i", LOGO_FILE,
+      "-filter_complex", fc, "-map", "[v]", "-t", fmt(d), ...ENCODE, "end.mp4",
+    ]);
     parts.push("end.mp4");
   }
 
