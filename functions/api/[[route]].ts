@@ -3,8 +3,13 @@
  * The whole site sits behind Cloudflare Access (Google sign-in), which adds
  * the signed-in user's email as a request header.
  */
+import { connectGoogle, disconnectGoogle, googleReady, googleToken, GoogleError } from "../../server/google";
+
 interface Env {
   DB: D1Database;
+  /** Google OAuth client (public) and its secret, for keeping Drive connected. */
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
   /** R2 bucket Meta fetches post files from. Optional until Phase 4 is set up. */
   OUTBOX?: R2Bucket;
   /** Public base URL of the outbox bucket, e.g. https://pub-xxxx.r2.dev */
@@ -85,6 +90,21 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params }) =>
       });
     }
 
+    // Roopip's shared Google Drive connection (see server/google.ts).
+    if (route === "google/token" && request.method === "GET") {
+      if (!googleReady(env)) return json({ connected: false, configured: false });
+      return json((await googleToken(env)) ?? { connected: false, configured: true });
+    }
+    if (route === "google/connect" && request.method === "POST") {
+      const { code } = (await request.json()) as { code?: string };
+      if (!code) return json({ error: "No code." }, 400);
+      return json(await connectGoogle(env, code, user || null));
+    }
+    if (route === "google/disconnect" && request.method === "POST") {
+      await disconnectGoogle(env);
+      return json({ connected: false });
+    }
+
     if (route === "slots" && request.method === "GET") {
       const from = url.searchParams.get("from") ?? "";
       const to = url.searchParams.get("to") ?? "";
@@ -118,6 +138,8 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params }) =>
     }
 
     const setting = route.match(/^settings\/([\w:.-]{1,100})$/);
+    // Keys starting "secret:" (the Drive sign-in) never leave the server.
+    if (setting && setting[1].startsWith("secret:")) return json({ error: "not found" }, 404);
     if (setting && request.method === "GET") {
       const row = await env.DB.prepare("SELECT value FROM settings WHERE key = ?1").bind(setting[1]).first<{ value: string }>();
       return json({ value: row ? JSON.parse(row.value) : null });
@@ -134,6 +156,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params }) =>
 
     return json({ error: "not found" }, 404);
   } catch (err) {
+    if (err instanceof GoogleError) return json({ error: err.message }, err.status);
     return json({ error: String(err) }, 500);
   }
 };

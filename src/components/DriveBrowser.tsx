@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
+import { useDriveConnected } from "../lib/useDrive";
 import { DEFAULT_FOLDERS, type MediaFolder } from "../lib/mediaIndex";
-import { connectDrive, disconnectDrive, driveConfigured, driveConnected, listFolder, type DriveItem } from "../lib/drive";
+import { connectDrive, disconnectDrive, driveAccount, driveConfigured, driveIsShared, listFolder, type DriveItem } from "../lib/drive";
 
 
 interface Props {
@@ -14,7 +15,7 @@ interface Props {
 
 export function DriveBrowser({ onPick, roots, onConnected }: Props) {
   const ROOTS = roots?.length ? roots : DEFAULT_FOLDERS;
-  const [connected, setConnected] = useState(driveConnected());
+  const connected = useDriveConnected();
   const [path, setPath] = useState<{ id: string; name: string }[]>([ROOTS[0]]);
   const [items, setItems] = useState<DriveItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -27,7 +28,6 @@ export function DriveBrowser({ onPick, roots, onConnected }: Props) {
     setError(null);
     try {
       setItems(await listFolder(folder.id));
-      setConnected(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -53,8 +53,9 @@ export function DriveBrowser({ onPick, roots, onConnected }: Props) {
       <div className="banner">
         <p style={{ margin: "0 0 10px" }}>
           Sign in with <b>carli@roopip.co.za</b>, the Google account that owns Roopip's Drive folders, and tick both Google Drive boxes.
+          {driveIsShared() && " You only need to do this once: Drive then stays connected for everyone until someone clicks Sign out of Drive."}
         </p>
-        <button className="btn primary" onClick={() => connectDrive().then(() => { setConnected(true); onConnected?.(); }, (e) => setError(String(e.message ?? e)))}>
+        <button className="btn primary" onClick={() => connectDrive().then(() => onConnected?.(), (e) => setError(String(e.message ?? e)))}>
           Connect Google Drive
         </button>
         {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
@@ -86,16 +87,16 @@ export function DriveBrowser({ onPick, roots, onConnected }: Props) {
           </span>
         ))}
         <span className="spacer" />
+<span className="hint" style={{ fontSize: 12 }}>{driveAccount() ? `Drive: ${driveAccount()}` : ""}</span>
         <button
           className="btn small"
-          title="Sign out of Google Drive here and pick a different Google account"
+          title={driveIsShared() ? "Signs Roopip's Drive out of the app for everyone, until someone connects again" : "Sign out of Google Drive here and pick a different Google account"}
           onClick={() => {
-            disconnectDrive();
             setItems([]);
-            setConnected(false);
+            void disconnectDrive();
           }}
         >
-          Switch account
+          Sign out of Drive
         </button>
         {onPick && (
           <button className="btn primary small" disabled={!Object.keys(selected).length} onClick={() => onPick(Object.values(selected))}>

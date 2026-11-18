@@ -20,7 +20,7 @@ The calendar lives in Cloudflare D1. Use the **Cloudflare connector** (`execute`
 Tables (see `migrations/0001_init.sql`):
 
 - `slots(id, date, data, updated_at, updated_by)`. `data` is the whole slot as JSON. Its shape is `Slot` in `src/lib/types.ts`.
-- `settings(key, value)`. `value` is JSON. Keys: `generatedWeeks` (Mondays already planned), `extraIdeas` (ideas Claude added, `Idea[]`), `mediaFolders` (the Drive folders media comes from), `mediaIndex` (every file in them, with its folder `path`) and `mediaLooks` (each file's main colours, by file id). The app keeps the last three up to date; only read them.
+- `settings(key, value)`. `value` is JSON. Keys: `generatedWeeks` (Mondays already planned), `extraIdeas` (ideas Claude added, `Idea[]`), `mediaFolders` (the Drive folders media comes from), `mediaIndex` (every file in them, with its folder `path`) and `mediaLooks` (each file's main colours, by file id). The app keeps the last three up to date; only read them. Never read or change keys starting `secret:` (the app's Google sign-in).
 
 Product names, sizes, colours and prices are in the product master sheet. Read it with the **Google Drive connector**, using file id `1qVv9XyEMTR0-DGG6EID49dnKz1Kn-EfWtv6hSTNSQHg`.
 
