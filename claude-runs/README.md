@@ -20,7 +20,7 @@ The calendar lives in Cloudflare D1. Use the **Cloudflare connector** (`execute`
 Tables (see `migrations/0001_init.sql`):
 
 - `slots(id, date, data, updated_at, updated_by)`. `data` is the whole slot as JSON. Its shape is `Slot` in `src/lib/types.ts`.
-- `settings(key, value)`. `value` is JSON. Keys: `generatedWeeks` (Mondays already planned) and `extraIdeas` (ideas Claude added, `Idea[]`).
+- `settings(key, value)`. `value` is JSON. Keys: `generatedWeeks` (Mondays already planned), `extraIdeas` (ideas Claude added, `Idea[]`), `mediaFolders` (the Drive folders media comes from), `mediaIndex` (every file in them, with its folder `path`) and `mediaLooks` (each file's main colours, by file id). The app keeps the last three up to date; only read them.
 
 Product names, sizes, colours and prices are in the product master sheet. Read it with the **Google Drive connector**, using file id `1qVv9XyEMTR0-DGG6EID49dnKz1Kn-EfWtv6hSTNSQHg`.
 
@@ -35,9 +35,9 @@ Product names, sizes, colours and prices are in the product master sheet. Read i
    Pass the `updated_at` you read as the last param. If `meta.changes` is 0, someone edited the slot meanwhile. Skip it, and it will be picked up next run.
 2. In `data`, set `updatedAt` to the same new ISO time as `updated_at`.
 3. Record what you did in `data.claude = { at, note, previous }`. `note` is one or two plain sentences for Carli. `previous` holds the old values of every field you changed: `title`, `prompt`, `shots`, `caption`, `hashtags`, `cta` or `storyboard`. The app's "Undo Claude's changes" button restores them.
-4. Change only `title`, `prompt`, `shots`, `caption`, `hashtags`, `cta`, `storyboard` (reels), `askClaude`, `claude` and `notes`. Never touch `status`, `media`, `date`, `time`, `format`, `music` or `locked`, and never delete slots.
+4. Change only `title`, `prompt`, `shots`, `caption`, `hashtags`, `cta`, `storyboard` (reels), `askClaude`, `claude`, `notes`, `canva` and `brandCheck`. Never touch `status`, `media`, `date`, `time`, `format`, `music` or `locked`, and never delete slots. A Canva export or a brand check alone doesn't need a `claude` note.
 5. Leave `locked` slots alone unless they are marked `askClaude`. A request beats a lock.
-6. Leave anything with status `approved`, `scheduled` or `posted` alone. Carli has signed it off.
+6. Leave anything with status `approved`, `scheduled` or `posted` alone. Carli has signed it off. The one exception is a Canva export someone asked for (see `ask-claude.md`).
 7. Use only the claims in `BRAND.approvedClaims` (`src/lib/brand.ts`). If a request asks for anything else, such as "eco-certified", "waterproof" or "organic", don't write it, and say why in the note.
 8. Do not open `Roopip_Social_Media_Manager_Start_Up_Checklist` in Drive. It holds passwords. Everything you need from it is already in `src/lib/brand.ts`.
 9. Don't commit or push to the repo, and don't open pull requests. These runs change calendar data only.

@@ -60,7 +60,7 @@ export function Overview({ cal, onOpen }: { cal: Calendar; onOpen: (s: Slot) => 
 
       <aside className="ig" aria-label="Instagram grid preview">
         <div className="ig-head">
-          <div className="ig-avatar">r</div>
+          <img className="ig-avatar" src="/apple-touch-icon.png" alt="" />
           <div>
             <b>roopip</b>
             <div style={{ fontSize: 12, color: "var(--muted)" }}>Grid preview</div>

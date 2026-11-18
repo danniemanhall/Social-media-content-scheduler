@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
-import { BRAND } from "../lib/brand";
-import { connectDrive, driveConfigured, driveConnected, listFolder, type DriveItem } from "../lib/drive";
+import { DEFAULT_FOLDERS, type MediaFolder } from "../lib/mediaIndex";
+import { connectDrive, disconnectDrive, driveConfigured, driveConnected, listFolder, type DriveItem } from "../lib/drive";
 
-const ROOTS = [
-  { id: BRAND.links.driveProductPhotos, name: "Product Photos" },
-  { id: BRAND.links.driveBrandAssets, name: "Brand Assets" },
-];
 
 interface Props {
   /** When set, clicking files selects them and a "Use" button hands them back. */
   onPick?: (items: DriveItem[]) => void;
+  /** The media folders to start from (from Brand & ideas). */
+  roots?: MediaFolder[];
+  /** Called once Drive is connected, e.g. to start a scan. */
+  onConnected?: () => void;
 }
 
-export function DriveBrowser({ onPick }: Props) {
+export function DriveBrowser({ onPick, roots, onConnected }: Props) {
+  const ROOTS = roots?.length ? roots : DEFAULT_FOLDERS;
   const [connected, setConnected] = useState(driveConnected());
   const [path, setPath] = useState<{ id: string; name: string }[]>([ROOTS[0]]);
   const [items, setItems] = useState<DriveItem[]>([]);
@@ -50,8 +51,10 @@ export function DriveBrowser({ onPick }: Props) {
   if (!connected) {
     return (
       <div className="banner">
-        <p style={{ margin: "0 0 10px" }}>Sign in with the Google account that can see Roopip's Drive folders.</p>
-        <button className="btn primary" onClick={() => connectDrive().then(() => setConnected(true), (e) => setError(String(e.message ?? e)))}>
+        <p style={{ margin: "0 0 10px" }}>
+          Sign in with <b>carli@roopip.co.za</b>, the Google account that owns Roopip's Drive folders, and tick both Google Drive boxes.
+        </p>
+        <button className="btn primary" onClick={() => connectDrive().then(() => { setConnected(true); onConnected?.(); }, (e) => setError(String(e.message ?? e)))}>
           Connect Google Drive
         </button>
         {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
@@ -83,6 +86,17 @@ export function DriveBrowser({ onPick }: Props) {
           </span>
         ))}
         <span className="spacer" />
+        <button
+          className="btn small"
+          title="Sign out of Google Drive here and pick a different Google account"
+          onClick={() => {
+            disconnectDrive();
+            setItems([]);
+            setConnected(false);
+          }}
+        >
+          Switch account
+        </button>
         {onPick && (
           <button className="btn primary small" disabled={!Object.keys(selected).length} onClick={() => onPick(Object.values(selected))}>
             Use {Object.keys(selected).length || ""} selected

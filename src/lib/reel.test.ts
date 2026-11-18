@@ -68,6 +68,7 @@ describe.runIf(hasFfmpeg)("buildJob with real ffmpeg", () => {
     run(["-f", "lavfi", "-i", "testsrc=s=800x1000:d=1", "-frames:v", "1", "b.jpg"]);
     run(["-f", "lavfi", "-i", "sine=f=440:d=30", "music.mp3"]);
     cpSync("public/fonts", join(dir, "fonts"), { recursive: true });
+    cpSync("public/roopip-logo.png", join(dir, "fonts", "roopip-logo.png"));
 
     const sb = autoStoryboard([vid("a", 6), img("b")], "Handmade, one piece at a time");
     sb.shots[0].speed = 0.5;

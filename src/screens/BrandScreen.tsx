@@ -2,8 +2,10 @@ import { useMemo, useState } from "react";
 import { BRAND, FORMAT_LABEL, PILLARS } from "../lib/brand";
 import { IDEAS } from "../lib/ideas";
 import type { Format, Idea } from "../lib/types";
+import { MediaFolders } from "../components/MediaFolders";
+import type { MediaLibraryState } from "../lib/mediaIndex";
 
-export function BrandScreen({ ideas: bank = IDEAS }: { ideas?: Idea[] }) {
+export function BrandScreen({ ideas: bank = IDEAS, lib }: { ideas?: Idea[]; lib?: MediaLibraryState }) {
   const builtIn = useMemo(() => new Set(IDEAS.map((i) => i.id)), []);
   const [format, setFormat] = useState<Format | "all">("all");
   const [q, setQ] = useState("");
@@ -65,6 +67,7 @@ export function BrandScreen({ ideas: bank = IDEAS }: { ideas?: Idea[] }) {
             Products and prices: <a href={`https://docs.google.com/spreadsheets/d/${BRAND.links.productSheet}`} target="_blank" rel="noopener">product master sheet</a>
           </p>
         </div>
+        {lib && <MediaFolders lib={lib} />}
       </section>
 
       <section className="section">

@@ -93,6 +93,40 @@ export interface Slot {
   render?: ReelRender;
   /** Set when the post is handed to the publisher (status "scheduled"). */
   publish?: Publish;
+  /** A Canva design to bring in at a set size (exported by Claude's scheduled run). */
+  canva?: CanvaRequest;
+  /** Claude's look at the post's media against the brand (fonts, text, colours). */
+  brandCheck?: BrandCheck;
+}
+
+export type CanvaSize = "story" | "grid" | "reel";
+
+export interface CanvaRequest {
+  /** The Canva share or edit link someone pasted. */
+  link: string;
+  size: CanvaSize;
+  requestedAt: string;
+  /**
+   * requested: waiting for Claude's next run. exported: files are ready to add
+   * (the links work for about a day). added: the files are on the post.
+   * failed: see error.
+   */
+  status: "requested" | "exported" | "added" | "failed";
+  /** Canva download links, one per page (or one video). */
+  files?: { url: string; type: "image" | "video" }[];
+  exportedAt?: string;
+  addedAt?: string;
+  error?: string;
+}
+
+export interface BrandCheck {
+  at: string;
+  /** True when Claude found nothing off-brand. */
+  ok: boolean;
+  /** Plain-language notes, e.g. "The text uses a script font, not Cormorant Garamond." */
+  notes: string[];
+  /** The media ids Claude looked at. A change to the post's media makes the check stale. */
+  mediaIds: string[];
 }
 
 export interface OutboxFile {
