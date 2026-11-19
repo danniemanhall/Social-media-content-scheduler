@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { BRAND, FORMAT_LABEL, PILLARS } from "../lib/brand";
-import { IDEAS } from "../lib/ideas";
+import { BUILT_IN_IDEAS as IDEAS } from "../lib/planner";
+import { CHANNEL_RULES, CHANNEL_LABEL, GRID_RULES, PLAYBOOK_DOC, WEEK_THEMES } from "../lib/playbook";
 import type { Format, Idea } from "../lib/types";
 import { MediaFolders } from "../components/MediaFolders";
 import type { MediaLibraryState } from "../lib/mediaIndex";
@@ -72,6 +73,38 @@ export function BrandScreen({ ideas: bank = IDEAS, lib }: { ideas?: Idea[]; lib?
 
       <section className="section">
         <div className="section-head">
+          <h2>Playbook</h2>
+          <span className="hint">
+            From <a href={`https://docs.google.com/document/d/${PLAYBOOK_DOC.id}`} target="_blank" rel="noopener">{PLAYBOOK_DOC.title}</a>. Idea suggestions follow this.
+          </span>
+        </div>
+        <div className="cards">
+          {WEEK_THEMES.map((t) => (
+            <div className="card" key={t.n}>
+              <h3>Week {t.n}: {t.name}</h3>
+              <p style={{ margin: "8px 0", fontSize: 14 }}>{t.focus}</p>
+              <p style={{ margin: "8px 0", fontSize: 14 }}><b>Grid:</b> {t.grid}</p>
+              <ul style={{ fontSize: 14 }}>{t.stories.map((x) => <li key={x}>{x}</li>)}</ul>
+              <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--muted)" }}>Highlight: {t.highlight}</p>
+            </div>
+          ))}
+          <div className="card">
+            <h3>Grid rules</h3>
+            <ul style={{ fontSize: 14 }}>{GRID_RULES.map((r) => <li key={r.title}><b>{r.title}.</b> {r.rule}</li>)}</ul>
+          </div>
+          <div className="card">
+            <h3>Where to send people</h3>
+            <ul style={{ fontSize: 14 }}>
+              {Object.values(CHANNEL_RULES).map((r) => (
+                <li key={r.when}><b>{r.channels.map((c) => CHANNEL_LABEL[c]).join(" / ")}:</b> {r.when}. <i>{r.cta}</i></li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="section-head">
           <h2>Idea bank</h2>
           <span className="hint">
             {bank.length} ideas the calendar draws from
@@ -95,7 +128,7 @@ export function BrandScreen({ ideas: bank = IDEAS, lib }: { ideas?: Idea[]; lib?
             <tbody>
               {ideas.map((i) => (
                 <tr key={i.id}>
-                  <td><b>{i.title}</b>{!builtIn.has(i.id) && <span className="chip" style={{ marginLeft: 6 }}>Claude</span>}<div style={{ color: "var(--muted)" }}>{i.prompt}</div></td>
+                  <td><b>{i.title}</b>{!builtIn.has(i.id) && <span className="chip" style={{ marginLeft: 6 }}>Claude</span>}{i.id.startsWith("doc-") && <span className="chip" style={{ marginLeft: 6 }}>Drive doc</span>}<div style={{ color: "var(--muted)" }}>{i.prompt}</div></td>
                   <td>{FORMAT_LABEL[i.format]}</td>
                   <td>{i.pillar}</td>
                   <td>{i.product ?? "Any"}</td>

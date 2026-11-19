@@ -19,7 +19,7 @@ If none of the four has anything to do, stop and say "No requests."
    If there are none, go on to the brand checks.
 3. Read the product master sheet once if any request involves a product.
 4. For each slot, read `notes` and do what it asks, within the rules.
-   - **No notes:** rewrite the caption, hashtags and call to action so they fit this slot's idea, product and date.
+   - **No notes:** rewrite the caption, hashtags and call to action so they fit this slot's idea, product and date, and any event or sale in play that day (see "The content brain" in `README.md`).
    - **Asks for a different idea:** you may change `title`, `prompt` and `shots` too. Keep the same `format` and `pillar` unless the note asks otherwise.
    - **Asks a question:** answer it in `claude.note`, and change fields only if the question calls for it.
    - **Reel with no media yet:** also make the shot list a clear running order with rough seconds per shot, for example "0–3 s: close-up of rope coil".

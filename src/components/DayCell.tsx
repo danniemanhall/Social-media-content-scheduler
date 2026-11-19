@@ -2,6 +2,7 @@ import { useState, type DragEvent } from "react";
 import { Tile } from "./Tile";
 import { dayName, shortDate, todayISO } from "../lib/dates";
 import type { Format, Slot } from "../lib/types";
+import type { Occurrence } from "../lib/events";
 
 interface Props {
   date: string;
@@ -10,9 +11,14 @@ interface Props {
   onMove?: (id: string, date: string) => void;
   onAdd?: (date: string, format: Format) => void;
   other?: boolean;
+  /** Events and sales running on this day. */
+  events?: Occurrence[];
+  /** Marketplace deal deadlines on this day. */
+  deadlines?: Occurrence[];
+  onEvent?: (e: Occurrence) => void;
 }
 
-export function DayCell({ date, slots, onOpen, onMove, onAdd, other }: Props) {
+export function DayCell({ date, slots, onOpen, onMove, onAdd, other, events, deadlines, onEvent }: Props) {
   const [over, setOver] = useState(false);
   const [adding, setAdding] = useState(false);
   const today = todayISO();
@@ -42,6 +48,14 @@ export function DayCell({ date, slots, onOpen, onMove, onAdd, other }: Props) {
           </button>
         )}
       </div>
+      {events?.map((e) => (
+        <button key={e.id} type="button" className={`day-ev ev-${e.kind}`} onClick={() => onEvent?.(e)} title={e.notes ?? e.title}>
+          {e.title}
+        </button>
+      ))}
+      {deadlines?.map((e) => (
+        <div key={`d-${e.id}`} className="day-deadline" title={e.notes}>⚑ Submit {e.title} deal today</div>
+      ))}
       {adding && onAdd && (
         <div className="add-menu">
           {(["reel", "post", "carousel", "story"] as Format[]).map((f) => (

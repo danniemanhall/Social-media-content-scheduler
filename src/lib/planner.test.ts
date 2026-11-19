@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planWeek, planRange, ideaBank, gridFormats, shuffleSlot, MIN_PILLARS_PER_WEEK } from "./planner";
+import { planWeek, planRange, ideaBank, gridFormats, shuffleSlot, MIN_PILLARS_PER_WEEK, BUILT_IN_IDEAS } from "./planner";
 import { addDays } from "./dates";
 import { IDEAS } from "./ideas";
 import type { Slot } from "./types";
@@ -91,7 +91,7 @@ describe("Claude's extra ideas", () => {
 
   it("adds new ideas and ignores ones that reuse a built-in id", () => {
     const bank = ideaBank([extra, { ...IDEAS[0], title: "dupe" }]);
-    expect(bank).toHaveLength(IDEAS.length + 1);
+    expect(bank).toHaveLength(BUILT_IN_IDEAS.length + 1);
     expect(bank.find((i) => i.id === IDEAS[0].id)?.title).toBe(IDEAS[0].title);
   });
 
