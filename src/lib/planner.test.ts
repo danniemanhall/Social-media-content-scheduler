@@ -1,80 +1,70 @@
 import { describe, expect, it } from "vitest";
-import { planWeek, planRange, ideaBank, gridFormats, shuffleSlot, MIN_PILLARS_PER_WEEK, BUILT_IN_IDEAS } from "./planner";
+import { planWeek, planRange, ideaBank, shuffleSlot, slotFromIdea, replan, isOpen, BUILT_IN_IDEAS } from "./planner";
 import { addDays } from "./dates";
 import { IDEAS } from "./ideas";
 import type { Slot } from "./types";
 
-function planWeeks(start: string, n: number) {
-  const all: Slot[] = [];
-  for (let w = 0; w < n; w++) all.push(...planWeek(addDays(start, 7 * w), all));
-  return all;
-}
-
 describe("planWeek", () => {
   const monday = "2026-11-23";
 
-  it("fills the default cadence: 1 reel, 2 grid posts, 3 stories", () => {
+  it("plans 3 stories, 1 reel and 1 grid post, and keeps Sunday free", () => {
     const week = planWeek(monday, []);
     const count = (f: string[]) => week.filter((s) => f.includes(s.format)).length;
     expect(count(["reel"])).toBe(1);
-    expect(count(["post", "carousel"])).toBe(2);
+    expect(count(["post", "carousel"])).toBe(1);
     expect(count(["story"])).toBe(3);
-    expect(week.every((s) => s.date >= monday && s.date <= addDays(monday, 6))).toBe(true);
+    expect(week.every((s) => s.date >= monday && s.date <= addDays(monday, 5))).toBe(true);
   });
 
-  it("adds the optional Sunday story when asked", () => {
-    expect(planWeek(monday, [], { includeOptional: true }).filter((s) => s.format === "story")).toHaveLength(4);
-  });
-
-  it("is deterministic for the same week and history", () => {
-    expect(planWeek(monday, []).map((s) => s.ideaId)).toEqual(planWeek(monday, []).map((s) => s.ideaId));
-  });
-
-  it("covers at least 3 pillars every week, for a year", () => {
-    const all = planWeeks(monday, 52);
-    for (let w = 0; w < 52; w++) {
-      const start = addDays(monday, 7 * w);
-      const week = all.filter((s) => s.date >= start && s.date <= addDays(start, 6));
-      expect(new Set(week.map((s) => s.pillar)).size).toBeGreaterThanOrEqual(MIN_PILLARS_PER_WEEK);
-    }
-  });
-
-  it("never repeats an idea within the same week", () => {
+  it("leaves every slot open, for the idea to be picked in the guided flow", () => {
     const week = planWeek(monday, []);
-    expect(new Set(week.map((s) => s.ideaId)).size).toBe(week.length);
+    expect(week.every((s) => isOpen(s) && s.title === "" && s.step === "canva")).toBe(true);
   });
 
-  it("does not reuse a reel within 8 weeks while unused reels remain", () => {
-    const all = planWeeks(monday, 8);
-    const reels = all.filter((s) => s.format === "reel").map((s) => s.ideaId);
-    expect(new Set(reels).size).toBe(reels.length);
+  it("gives the same slot ids for the same week", () => {
+    expect(planWeek(monday, []).map((s) => s.id)).toEqual(planWeek(monday, []).map((s) => s.id));
+  });
+});
+
+describe("replan", () => {
+  const today = "2026-11-24";
+  const old = (date: string, format: Slot["format"], extra: Partial<Slot> = {}): Slot => ({
+    ...slotFromIdea(IDEAS.find((i) => i.format === format)!, date, "08:00", `${date}-${format}-old`),
+    ...extra,
   });
 
-  it("never features the same product in two consecutive product posts", () => {
-    const all = planWeeks(monday, 26).filter((s) => s.product);
-    for (let i = 1; i < all.length; i++) expect(all[i].product).not.toBe(all[i - 1].product);
+  it("swaps untouched pre-filled slots for open ones and keeps worked-on ones", () => {
+    const existing = [
+      old("2026-11-23", "story"), // past: left alone
+      old("2026-11-25", "story"),
+      old("2026-11-27", "post", { media: [{ id: "m", source: "drive", name: "a.jpg", mimeType: "image/jpeg" }], status: "media" }),
+      old("2026-11-30", "reel"),
+      old("2026-12-02", "carousel", { locked: true }),
+    ];
+    const { remove, add } = replan(existing, today);
+    expect(remove.sort()).toEqual(["2026-11-25-story-old", "2026-11-30-reel-old"]);
+    // This week: the grid post with media stays, so no new grid slot; past days get nothing.
+    const thisWeek = add.filter((s) => s.date < "2026-11-30");
+    expect(thisWeek.some((s) => s.format === "post")).toBe(false);
+    expect(thisWeek.every((s) => s.date >= today)).toBe(true);
+    // Next week: the locked carousel counts as the grid post.
+    const next = add.filter((s) => s.date >= "2026-11-30");
+    expect(next.filter((s) => s.format === "story")).toHaveLength(3);
+    expect(next.filter((s) => s.format === "reel")).toHaveLength(1);
+    expect(next.filter((s) => s.format === "post")).toHaveLength(0);
+    expect(add.every(isOpen)).toBe(true);
   });
 
-  it("alternates grid layouts so a slot never repeats last week's layout", () => {
-    const a = gridFormats(monday);
-    const b = gridFormats(addDays(monday, 7));
-    expect(a[0]).not.toBe(b[0]);
-    expect(a[1]).not.toBe(b[1]);
-  });
-
-  it("only uses seasonal ideas in their months", () => {
-    const all = planWeeks("2026-01-05", 52);
-    const byId = Object.fromEntries(IDEAS.map((i) => [i.id, i]));
-    for (const s of all) {
-      const months = byId[s.ideaId].months;
-      if (months?.length) expect(months).toContain(Number(s.date.slice(5, 7)));
-    }
+  it("leaves open slots and slots started in the flow alone", () => {
+    const week = planWeek("2026-11-30", []);
+    const started = { ...old("2026-12-01", "reel"), step: "media" as const };
+    expect(replan([...week, started], today).remove).toEqual([]);
   });
 });
 
 describe("shuffleSlot", () => {
   it("keeps date, time, format and media but changes the idea", () => {
-    const [slot] = planWeek("2026-11-23", []);
+    const slot = slotFromIdea(IDEAS.find((i) => i.format === "story")!, "2026-11-23", "10:00", "s1");
     const withMedia = { ...slot, media: [{ id: "m1", source: "drive" as const, name: "a.jpg", mimeType: "image/jpeg" }], status: "media" as const };
     const next = shuffleSlot(withMedia, [withMedia], "seed");
     expect(next.ideaId).not.toBe(slot.ideaId);
@@ -96,7 +86,7 @@ describe("Claude's extra ideas", () => {
   });
 
   it("can be shuffled into a slot", () => {
-    const reel = planWeek("2026-11-23", []).find((s) => s.format === "reel")!;
+    const reel = slotFromIdea(IDEAS.find((i) => i.format === "reel")!, "2026-11-24", "12:00", "r1");
     const onlyExtra = [extra, IDEAS.find((i) => i.id === reel.ideaId)!];
     expect(shuffleSlot(reel, [reel], "s", onlyExtra).ideaId).toBe("claude-test-reel");
   });

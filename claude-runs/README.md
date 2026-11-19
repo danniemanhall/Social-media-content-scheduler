@@ -43,7 +43,7 @@ Product names, sizes, colours and prices are in the product master sheet. Read i
    Pass the `updated_at` you read as the last param. If `meta.changes` is 0, someone edited the slot meanwhile. Skip it, and it will be picked up next run.
 2. In `data`, set `updatedAt` to the same new ISO time as `updated_at`.
 3. Record what you did in `data.claude = { at, note, previous }`. `note` is one or two plain sentences for Carli. `previous` holds the old values of every field you changed: `title`, `prompt`, `shots`, `caption`, `hashtags`, `cta` or `storyboard`. The app's "Undo Claude's changes" button restores them.
-4. Change only `title`, `prompt`, `shots`, `caption`, `hashtags`, `cta`, `storyboard` (reels), `askClaude`, `claude`, `notes`, `canva` and `brandCheck`. Never touch `status`, `media`, `date`, `time`, `format`, `music` or `locked`, and never delete slots. A Canva export or a brand check alone doesn't need a `claude` note.
+4. Change only `title`, `prompt`, `shots`, `caption`, `hashtags`, `cta`, `storyboard` (reels), `askClaude`, `claude`, `notes`, `canva`, `brandCheck` and `captionOptions`. Never touch `status`, `media`, `date`, `time`, `format`, `music` or `locked`, and never delete slots. A Canva export or a brand check alone doesn't need a `claude` note.
 5. Leave `locked` slots alone unless they are marked `askClaude`. A request beats a lock.
 6. Leave anything with status `approved`, `scheduled` or `posted` alone. Carli has signed it off. The one exception is a Canva export someone asked for (see `ask-claude.md`).
 7. Use only the claims in `BRAND.approvedClaims` (`src/lib/brand.ts`). If a request asks for anything else, such as "eco-certified", "waterproof" or "organic", don't write it, and say why in the note.

@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { DayCell } from "../components/DayCell";
-import { useThumbUrl } from "../components/Thumb";
+import { GridPreview } from "../components/GridPreview";
 import { addDays, shortDate, todayISO, weekStart } from "../lib/dates";
 import type { Calendar } from "../lib/useCalendar";
 import type { Slot } from "../lib/types";
@@ -30,12 +30,6 @@ export function Overview({ cal, events = [], onOpen, onYear }: { cal: Calendar; 
     ready: upcoming.filter((s) => s.status === "approved" || s.status === "scheduled").length,
     claude: upcoming.filter((s) => s.askClaude).length,
   };
-
-  // Instagram shows the newest post top-left, so lay the next 9 grid posts out that way.
-  const gridPosts = useMemo(() => {
-    const posted = cal.slots.filter((s) => (s.format === "post" || s.format === "carousel") && s.date >= addDays(today, -60));
-    return posted.slice(-9).reverse();
-  }, [cal.slots, today]);
 
   return (
     <div className="layout">
@@ -104,29 +98,9 @@ export function Overview({ cal, events = [], onOpen, onYear }: { cal: Calendar; 
             <div style={{ fontSize: 12, color: "var(--muted)" }}>Grid preview</div>
           </div>
         </div>
-        <div className="ig-grid">
-          {Array.from({ length: 9 }, (_, i) => {
-            const s = gridPosts[i];
-            if (!s) return <div key={i} className="ig-cell empty" />;
-            return <IgCell key={s.id} slot={s} onOpen={onOpen} />;
-          })}
-        </div>
-        <p className="ig-note">Newest top-left, the way your profile shows it. Check the colours flow and no two neighbours look the same.</p>
+        <GridPreview slots={cal.slots} onOpen={onOpen} />
+        <p className="ig-note">Posted, scheduled and approved grid posts and reels, newest top-left in the order they go out, the way your profile will show them. Check the colours flow and no two neighbours look the same.</p>
       </aside>
     </div>
-  );
-}
-
-function IgCell({ slot: s, onOpen }: { slot: Slot; onOpen: (s: Slot) => void }) {
-  const thumb = useThumbUrl(s.media.find((m) => m.thumbnail));
-  return (
-    <button
-      className={`ig-cell ${thumb ? "" : "empty"}`}
-      style={thumb ? { backgroundImage: `url("${thumb}")` } : undefined}
-      onClick={() => onOpen(s)}
-      title={`${shortDate(s.date)} · ${s.title}`}
-    >
-      {!thumb && `${shortDate(s.date)} · ${s.title}`}
-    </button>
   );
 }

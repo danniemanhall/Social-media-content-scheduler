@@ -174,3 +174,37 @@ export async function renderBrollVideo(shots: { photo: MediaRef; move: BrollMove
     for (const f of [...files, "bv-list.txt", "bv-final.mp4"]) await ff.deleteFile(f).catch(() => undefined);
   }
 }
+
+/**
+ * Bakes a music track into a finished video (a B-roll video, a Canva video or
+ * a reel), fading in and out, so Instagram gets one file with sound and the
+ * post can go out automatically.
+ */
+export async function addMusic(video: MediaRef, track: Blob, onProgress: (p: Progress) => void): Promise<Blob> {
+  onProgress({ value: 0, label: "Loading the video engine (first time takes a moment)…" });
+  const ff = await getFFmpeg();
+  onProgress({ value: 0.2, label: "Fetching the video and the music…" });
+  const blobs = [
+    { name: "v.mp4", data: await blobFor(video) },
+    { name: "music.audio", data: track },
+  ];
+  await ff.createDir("/mx").catch(() => undefined);
+  await ff.mount(FFFSType.WORKERFS, { blobs }, "/mx");
+  try {
+    const seconds = video.durationSec ?? 30;
+    onProgress({ value: 0.5, label: "Adding the music…" });
+    const code = await ff.exec([
+      "-y", "-i", "/mx/v.mp4", "-i", "/mx/music.audio",
+      "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-b:a", "160k",
+      "-af", `afade=t=in:d=0.5,afade=t=out:st=${Math.max(0, seconds - 1.5).toFixed(2)}:d=1.5`,
+      "-shortest", "-movflags", "+faststart", "with-music.mp4",
+    ]);
+    if (code !== 0) throw new Error("Couldn't add the music to the video.");
+    const data = (await ff.readFile("with-music.mp4")) as Uint8Array;
+    await ff.deleteFile("with-music.mp4").catch(() => undefined);
+    onProgress({ value: 1, label: "Done" });
+    return new Blob([data], { type: "video/mp4" });
+  } finally {
+    await ff.unmount("/mx").catch(() => undefined);
+  }
+}
