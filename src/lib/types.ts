@@ -97,6 +97,36 @@ export interface Slot {
   canva?: CanvaRequest;
   /** Claude's look at the post's media against the brand (fonts, text, colours). */
   brandCheck?: BrandCheck;
+  /** Where the guided post flow is up to. Missing on slots made before the flow. */
+  step?: FlowStep;
+  /** The song for this post: one from the music folder (baked in) or one saved on Instagram (added by hand). */
+  song?: Song;
+  /** The Canva design pulled into this post through the Canva browser. */
+  canvaDesign?: { id: string; title: string; pages: number };
+  /** Why the time was suggested, shown next to it. */
+  timeWhy?: string;
+  /** Shot list items ticked to include (by index into `shots`). Missing = all. */
+  shotsChosen?: number[];
+  /** The photos a B-roll video replaced, so "Keep the photos instead" can put them back. */
+  stillMedia?: MediaRef[];
+  /** Caption options Claude wrote for this post when asked, to pick from in the flow. */
+  captionOptions?: string[];
+}
+
+/**
+ * The guided steps for making a post. `canva` asks whether to pull a design
+ * from Canva first; a Canva design then skips straight to `heading`.
+ */
+export type FlowStep = "canva" | "idea" | "heading" | "shots" | "media" | "broll" | "music" | "words" | "time" | "preview" | "done";
+
+export interface Song {
+  title: string;
+  /** library: a track file in the "Roopip music" Drive folder, baked into the video so it can auto-post.
+   *  instagram: a song saved on Instagram; the app reminds whoever posts it by hand to add it. */
+  source: "library" | "instagram";
+  driveId?: string;
+  /** Set once the song is baked into the post's video. */
+  bakedInto?: string;
 }
 
 export type CanvaSize = "story" | "grid" | "reel";
@@ -142,7 +172,9 @@ export interface Publish {
   files: OutboxFile[];
   queuedAt: string;
   queuedBy?: string;
-  ig?: { containerId?: string; mediaId?: string; permalink?: string };
+  ig?: { containerId?: string; mediaId?: string; permalink?: string; frames?: { containerId?: string; mediaId?: string }[] };
+  /** Engagement Instagram reported for the post, read by the publisher once a day for 2 weeks. */
+  stats?: { reach?: number; interactions?: number; saves?: number; shares?: number; at: string };
   fb?: { postId?: string; skipped?: string };
   attempts?: number;
   error?: string;

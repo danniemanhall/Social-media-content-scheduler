@@ -49,7 +49,12 @@ export function ReelEditor({ slot, save }: { slot: Slot; save: (patch: Partial<S
     setResult(null);
     try {
       const { renderReel } = await import("../lib/render");
-      const out = await renderReel(sb, media, wantsMusic ? music : null, setProgress);
+      let track: Blob | null = wantsMusic ? music : null;
+      if (wantsMusic && !track && slot.song?.source === "library" && slot.song.driveId) {
+        const { downloadFile } = await import("../lib/drive");
+        track = await downloadFile(slot.song.driveId);
+      }
+      const out = await renderReel(sb, media, track, setProgress);
       setResult({ url: URL.createObjectURL(out.video), blob: out.video, seconds: out.seconds });
       if (slot.status === "idea" || slot.status === "media") save({ status: "editing" });
     } catch (e) {
@@ -145,7 +150,7 @@ export function ReelEditor({ slot, save }: { slot: Slot; save: (patch: Partial<S
           </div>
           {wantsMusic && (
             <div className="hint-text">
-              Music: {music ? <b>{music.name}</b> : "none chosen, so the reel will be silent"}.{" "}
+              Music: {music ? <b>{music.name}</b> : slot.song?.source === "library" ? <b>{slot.song.title}</b> : "none chosen, so the reel will be silent"}.{" "}
               <button type="button" className="btn small" onClick={() => musicInput.current?.click()}>{music ? "Change" : "Choose a track"}</button>{" "}
               Use a track cleared for commercial use, such as one from Pixabay Music.
               <input ref={musicInput} type="file" accept="audio/*" hidden onChange={(e) => setMusic(e.target.files?.[0] ?? null)} />

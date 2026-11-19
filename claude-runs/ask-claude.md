@@ -19,11 +19,13 @@ If none of the four has anything to do, stop and say "No requests."
    If there are none, go on to the brand checks.
 3. Read the product master sheet once if any request involves a product.
 4. For each slot, read `notes` and do what it asks, within the rules.
-   - **No notes:** rewrite the caption, hashtags and call to action so they fit this slot's idea, product and date.
+   - **No notes:** rewrite the caption, hashtags and call to action so they fit this slot's idea, product and date, and any event or sale in play that day (see "The content brain" in `README.md`).
    - **Asks for a different idea:** you may change `title`, `prompt` and `shots` too. Keep the same `format` and `pillar` unless the note asks otherwise.
    - **Asks a question:** answer it in `claude.note`, and change fields only if the question calls for it.
    - **Reel with no media yet:** also make the shot list a clear running order with rough seconds per shot, for example "0–3 s: close-up of rope coil".
    - **Reel with media, or a note asking for a cut, edit or storyboard:** plan the edit in `storyboard` (see "Planning a reel" below). Don't render. People render in the app with one click.
+   - **"Write 3 caption options…"** (from the Caption step of the guided flow): write 3 different captions for the post in the voice in `voice.md`, and save them as `captionOptions` (an array of strings). Don't change `caption` itself; the person picks one in the app.
+   - **"Suggest 10 new <format> ideas about: …"** (from the Idea step, usually on an open slot with an empty `ideaId`): add 10 ideas of that format about the topic to the `extraIdeas` setting, following the idea rules in `monthly.md` step "Top up the idea bank". Don't fill the slot itself; say in `claude.note` that the new ideas are in the list.
    - **Can't do it:** for example, it needs a claim we can't make, or it needs media you can't see. Say so in `claude.note` and change nothing.
 5. Save the slot by the rules in `README.md`. Set `askClaude` to false, and fill `claude` with `at`, `note` and `previous`. Keep the person's `notes` as they are.
 6. Finish with the summary.

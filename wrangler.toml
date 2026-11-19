@@ -20,3 +20,4 @@ bucket_name = "roopip-outbox"
 [vars]
 OUTBOX_PUBLIC_URL = "https://pub-d5c113d93d654a2b8144da66e2de900e.r2.dev"
 GOOGLE_CLIENT_ID = "826846003906-dk4t0p6be391dnsdtg1v62mjnb6o23os.apps.googleusercontent.com"
+# Canva browser in the post flow: CANVA_CLIENT_ID and CANVA_CLIENT_SECRET are Pages secrets (docs/canva-setup.md).

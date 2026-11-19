@@ -14,11 +14,28 @@ import { FitNote, SuggestedMedia } from "./MediaSuggestions";
 import { Thumb } from "./Thumb";
 import type { MediaLibraryState } from "../lib/mediaIndex";
 import { kindOf } from "./Tile";
+import { EventBrief } from "./EventBrief";
+import type { BrandEvent } from "../lib/events";
 
 const CAPTION_LIMIT = 2200;
-const HASHTAG_LIMIT = 30;
+const HASHTAG_LIMIT = 5; // Instagram's limit since December 2025
 
-export function SlotDrawer({ slot, cal, lib, onClose }: { slot: Slot; cal: Calendar; lib: MediaLibraryState; onClose: () => void }) {
+export function SlotDrawer({
+  slot,
+  cal,
+  lib,
+  events,
+  onClose,
+  onGuided,
+}: {
+  slot: Slot;
+  cal: Calendar;
+  lib: MediaLibraryState;
+  events?: BrandEvent[];
+  onClose: () => void;
+  /** Switch to the step-by-step flow. */
+  onGuided?: () => void;
+}) {
   const [draft, setDraft] = useState<Slot>(slot);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -107,6 +124,11 @@ export function SlotDrawer({ slot, cal, lib, onClose }: { slot: Slot; cal: Calen
               {draft.product && <span className="chip">{draft.product}</span>}
             </div>
           </div>
+          {onGuided && (
+            <button className="btn small ghost" type="button" onClick={onGuided}>
+              Step by step
+            </button>
+          )}
           <button className="btn ghost" onClick={onClose} aria-label="Close">✕</button>
         </header>
 
@@ -125,6 +147,14 @@ export function SlotDrawer({ slot, cal, lib, onClose }: { slot: Slot; cal: Calen
 
         <div className="editor-cols">
         <div className="editor-main">
+        {events && (
+          <EventBrief
+            slot={draft}
+            events={events}
+            bank={cal.ideas}
+            onUse={(i) => !draft.locked && save({ ideaId: i.id, title: i.title, prompt: i.prompt, shots: [...i.shots], caption: i.caption, hashtags: [...i.hashtags], cta: i.cta, pillar: i.pillar, product: i.product })}
+          />
+        )}
         <div className="field">
           <div className="label">The idea</div>
           <div className="prompt">{draft.prompt}</div>
