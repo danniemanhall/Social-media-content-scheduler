@@ -2,7 +2,7 @@ import { FFmpeg, FFFSType } from "@ffmpeg/ffmpeg";
 import { fetchFile, toBlobURL } from "@ffmpeg/util";
 import { buildJob, isVideo, type JobInput, FONT_BODY, FONT_HEADING, LOGO_FILE } from "./reel";
 import { downloadFile } from "./drive";
-import { BROLL_MOVES, BROLL_VIDEO_SHOT, brollArgs, joinArgs, type BrollMove } from "./broll";
+import { BROLL_MOVES, BROLL_SECONDS, framesArgs, joinArgs, type BrollMove, type BrollShot, type Framing } from "./broll";
 import { getFile } from "./localMedia";
 import type { MediaRef, Storyboard } from "./types";
 
@@ -100,6 +100,41 @@ export async function renderReel(
   }
 }
 
+/** Films one B-roll shot of a decoded photo into an MP4 inside ffmpeg's file system. */
+async function filmToFile(
+  ff: FFmpeg,
+  bmp: ImageBitmap,
+  shot: { move: BrollMove; seconds: number; dir: 1 | -1; framing: Framing },
+  out: string,
+  logs: string[],
+  onFrame?: (done: number, total: number) => void,
+) {
+  const { filmShot } = await import("./brollRender");
+  const names: string[] = [];
+  try {
+    await filmShot(bmp, shot, async (jpeg, i, total) => {
+      const name = `bf-${String(i + 1).padStart(5, "0")}.jpg`;
+      await ff.writeFile(name, jpeg);
+      names.push(name);
+      onFrame?.(i + 1, total);
+    });
+    const code = await ff.exec(framesArgs("bf-%05d.jpg", out));
+    if (code !== 0) throw new Error(`The video engine stopped on "${BROLL_MOVES[shot.move].label}". ${logs.slice(-3).join(" ")}`);
+  } finally {
+    for (const n of names) await ff.deleteFile(n).catch(() => undefined);
+  }
+}
+
+function collectLogs(ff: FFmpeg) {
+  const logs: string[] = [];
+  const onLog = ({ message }: { message: string }) => {
+    logs.push(message);
+    if (logs.length > 40) logs.shift();
+  };
+  ff.on("log", onLog);
+  return { logs, stop: () => ff.off("log", onLog) };
+}
+
 /**
  * Turns one photo into short B-roll clips, one per camera move. The photo's
  * pixels and colours are left as they are; only the framing moves.
@@ -108,59 +143,58 @@ export async function renderBroll(photo: MediaRef, moves: BrollMove[], onProgres
   onProgress({ value: 0, label: "Loading the video engine (first time takes a moment)…" });
   const ff = await getFFmpeg();
   onProgress({ value: 0.05, label: `Fetching ${photo.name}…` });
-  const input = `broll-in${ext(photo)}`;
-  await ff.writeFile(input, new Uint8Array(await (await blobFor(photo)).arrayBuffer()));
+  const { loadPhoto, findFraming } = await import("./brollRender");
+  const bmp = await loadPhoto(await blobFor(photo));
+  const framing = findFraming(bmp);
   const out: { move: BrollMove; video: Blob }[] = [];
-  const logs: string[] = [];
-  const onLog = ({ message }: { message: string }) => {
-    logs.push(message);
-    if (logs.length > 40) logs.shift();
-  };
-  ff.on("log", onLog);
+  const { logs, stop } = collectLogs(ff);
   try {
     for (const [i, move] of moves.entries()) {
-      onProgress({ value: 0.08 + (0.9 * i) / moves.length, label: `Filming "${BROLL_MOVES[move].label.toLowerCase()}" (${i + 1} of ${moves.length})…` });
+      const base = 0.08 + (0.9 * i) / moves.length;
+      const label = `Filming "${BROLL_MOVES[move].label.toLowerCase()}" (${i + 1} of ${moves.length})…`;
+      onProgress({ value: base, label });
       const file = `broll-${move}.mp4`;
-      const code = await ff.exec(brollArgs(input, move, file));
-      if (code !== 0) throw new Error(`The video engine stopped on "${BROLL_MOVES[move].label}". ${logs.slice(-3).join(" ")}`);
+      await filmToFile(ff, bmp, { move, seconds: BROLL_SECONDS, dir: i % 2 ? -1 : 1, framing }, file, logs, (d, n) => onProgress({ value: base + (0.6 * d * 0.9) / n / moves.length, label }));
+      onProgress({ value: base + 0.6 * (0.9 / moves.length), label: `Saving "${BROLL_MOVES[move].label.toLowerCase()}"…` });
       const data = (await ff.readFile(file)) as Uint8Array;
       out.push({ move, video: new Blob([data], { type: "video/mp4" }) });
       await ff.deleteFile(file).catch(() => undefined);
     }
   } finally {
-    ff.off("log", onLog);
-    await ff.deleteFile(input).catch(() => undefined);
+    stop();
+    bmp.close();
   }
   onProgress({ value: 1, label: "Done" });
   return out;
 }
 
 /**
- * One B-roll video for a post: a short handheld-style shot of each photo, in
- * order, joined with straight cuts like real footage. Silent, 1080 x 1920.
+ * One B-roll video for a post: a slow, smooth slide across each photo, each
+ * one going the opposite way to the last, joined with straight cuts. Silent,
+ * 1080 x 1920.
  */
-export async function renderBrollVideo(shots: { photo: MediaRef; move: BrollMove }[], onProgress: (p: Progress) => void): Promise<Blob> {
+export async function renderBrollVideo(shots: BrollShot<MediaRef>[], onProgress: (p: Progress) => void): Promise<Blob> {
   onProgress({ value: 0, label: "Loading the video engine (first time takes a moment)…" });
   const ff = await getFFmpeg();
-  const logs: string[] = [];
-  const onLog = ({ message }: { message: string }) => {
-    logs.push(message);
-    if (logs.length > 40) logs.shift();
-  };
-  ff.on("log", onLog);
+  const { loadPhoto, findFraming } = await import("./brollRender");
+  const { logs, stop } = collectLogs(ff);
   const files: string[] = [];
   try {
-    for (const [i, { photo, move }] of shots.entries()) {
+    for (const [i, shot] of shots.entries()) {
       const step = 0.92 / shots.length;
-      onProgress({ value: 0.03 + step * i, label: `Fetching photo ${i + 1} of ${shots.length}…` });
-      const input = `bv-in-${i}${ext(photo)}`;
-      await ff.writeFile(input, new Uint8Array(await (await blobFor(photo)).arrayBuffer()));
-      onProgress({ value: 0.03 + step * (i + 0.2), label: `Filming shot ${i + 1} of ${shots.length} (${BROLL_MOVES[move].label.toLowerCase()})…` });
-      const out = `bv-${i}.mp4`;
-      const code = await ff.exec(brollArgs(input, move, out, BROLL_VIDEO_SHOT));
-      await ff.deleteFile(input).catch(() => undefined);
-      if (code !== 0) throw new Error(`The video engine stopped on ${photo.name}. ${logs.slice(-3).join(" ")}`);
-      files.push(out);
+      const at = (f: number) => 0.03 + step * (i + f);
+      onProgress({ value: at(0), label: `Fetching photo ${i + 1} of ${shots.length}…` });
+      const bmp = await loadPhoto(await blobFor(shot.photo));
+      try {
+        const seen = findFraming(bmp);
+        const framing = { ...seen, busy: shot.busy ?? seen.busy };
+        const label = `Filming shot ${i + 1} of ${shots.length} (${framing.busy ? "close" : "wide"}, ${shot.dir > 0 ? "left to right" : "right to left"})…`;
+        const out = `bv-${i}.mp4`;
+        await filmToFile(ff, bmp, { move: shot.move, seconds: shot.seconds, dir: shot.dir, framing }, out, logs, (d, n) => onProgress({ value: at(0.1 + 0.7 * (d / n)), label }));
+        files.push(out);
+      } finally {
+        bmp.close();
+      }
     }
     onProgress({ value: 0.96, label: "Joining the shots…" });
     await ff.writeFile("bv-list.txt", new TextEncoder().encode(files.map((f) => `file '${f}'`).join("\n")));
@@ -170,7 +204,7 @@ export async function renderBrollVideo(shots: { photo: MediaRef; move: BrollMove
     onProgress({ value: 1, label: "Done" });
     return new Blob([data], { type: "video/mp4" });
   } finally {
-    ff.off("log", onLog);
+    stop();
     for (const f of [...files, "bv-list.txt", "bv-final.mp4"]) await ff.deleteFile(f).catch(() => undefined);
   }
 }

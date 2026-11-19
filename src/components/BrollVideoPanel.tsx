@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { lastUsedMap, pickBrollPhotos, type IndexedMedia } from "../lib/brandFit";
-import { BROLL_MOVES, BROLL_VIDEO_PHOTOS, BROLL_VIDEO_SHOT, brollPlan, brollVideoName } from "../lib/broll";
+import { BROLL_MOVES, BROLL_VIDEO_PHOTOS, BROLL_VIDEO_SHOT, brollPlan, brollVideoName, planSeconds } from "../lib/broll";
 import type { MediaLibraryState } from "../lib/mediaIndex";
 import type { Progress } from "../lib/render";
 import type { MediaRef, Slot } from "../lib/types";
@@ -30,15 +30,15 @@ export function BrollVideoPanel({ slot, all, lib, save, onClose }: { slot: Slot;
   const [done, setDone] = useState(false);
 
   const chosen = ranked.filter((s) => !skipped.includes(s.media.id)).slice(0, count);
-  const plan = brollPlan(chosen.map((s) => s.media));
-  const seconds = Math.round(plan.length * BROLL_VIDEO_SHOT);
+  const plan = brollPlan(chosen.map((s) => s.media), lib.tags);
+  const seconds = Math.round(planSeconds(plan));
 
   const make = async () => {
     setError(null);
     setDone(false);
     try {
       const { renderBrollVideo } = await import("../lib/render");
-      const video = await renderBrollVideo(plan.map((p) => ({ photo: strip(p.photo), move: p.move })), setProgress);
+      const video = await renderBrollVideo(plan.map((p) => ({ ...p, photo: strip(p.photo) })), setProgress);
       setProgress({ value: 1, label: "Saving the video to Drive…" });
       const { BROLL_FOLDER, connectDrive, saveToAppFolder } = await import("../lib/drive");
       await connectDrive();
@@ -58,7 +58,7 @@ export function BrollVideoPanel({ slot, all, lib, save, onClose }: { slot: Slot;
         <div style={{ flex: 1 }}>
           <b>B-roll video for this post</b>
           <div className="hint">
-            The lifestyle photos that best fit the idea, each filmed with a slow handheld-style move and cut together. Nothing added or relit. Swap out any photo that doesn't feel right.
+            The lifestyle photos that best fit the idea, each filmed with a slow, smooth slide (close on busy scenes, wider on a single piece), alternating direction and cut together. Nothing added or relit. Swap out any photo that doesn't feel right.
           </div>
         </div>
         <button className="btn ghost small" type="button" onClick={onClose} aria-label="Close B-roll video">✕</button>
@@ -70,13 +70,13 @@ export function BrollVideoPanel({ slot, all, lib, save, onClose }: { slot: Slot;
       ) : (
         <>
           <div className="bv-shots">
-            {plan.map(({ photo, move }, i) => {
+            {plan.map(({ photo, move, dir }, i) => {
               const s = chosen[i];
               return (
                 <div className="bv-shot" key={photo.id}>
                   <Thumb media={photo} className="mthumb" />
                   <div className="hint">
-                    {i + 1}. {BROLL_MOVES[move].label}
+                    {i + 1}. {BROLL_MOVES[move].label} {dir > 0 ? "→" : "←"}
                   </div>
                   {s.text && <div className="seen" title="What Claude saw in this picture">{s.text}</div>}
                   <button type="button" className="btn ghost small" disabled={!!progress} onClick={() => setSkipped((k) => [...k, photo.id])} title="Use the next best photo instead">

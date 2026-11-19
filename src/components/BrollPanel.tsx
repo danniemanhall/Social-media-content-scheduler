@@ -8,12 +8,12 @@ const ALL = Object.keys(BROLL_MOVES) as BrollMove[];
 
 /**
  * Makes short B-roll clips from one photo and adds them to the post. The clips
- * only move the framing, like someone filming the scene by hand; the photo's
- * light and colours are untouched.
+ * only move the framing, like a camera on a slider; the photo's light and
+ * colours are untouched.
  */
 export function BrollPanel({ slot, photo, save, onClose }: { slot: Slot; photo: MediaRef; save: (patch: Partial<Slot>) => void; onClose: () => void }) {
   const wide = !!photo.width && !!photo.height && photo.width / photo.height > 1.1;
-  const [moves, setMoves] = useState<BrollMove[]>(wide ? ["push", "pan", "detail"] : ["push", "pull", "detail"]);
+  const [moves, setMoves] = useState<BrollMove[]>(wide ? ["pan", "push", "detail"] : ["pan", "tilt", "detail"]);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(0);
@@ -50,7 +50,7 @@ export function BrollPanel({ slot, photo, save, onClose }: { slot: Slot; photo: 
         <div style={{ flex: 1 }}>
           <b>Create video from {photo.name.replace(/\.[a-z0-9]+$/i, "")}</b>
           <div className="hint">
-            {BROLL_SECONDS}-second vertical clips that move through the photo like someone filming it by hand. Nothing is added or relit: same photo, same light, just a slow, natural camera move.
+            {BROLL_SECONDS}-second vertical clips that glide across the photo like a camera on a slider. Nothing is added or relit: same photo, same light, just a slow, smooth camera move.
           </div>
         </div>
         <button className="btn ghost small" type="button" onClick={onClose} aria-label="Close B-roll">✕</button>
