@@ -2,7 +2,7 @@ import { FFmpeg, FFFSType } from "@ffmpeg/ffmpeg";
 import { fetchFile, toBlobURL } from "@ffmpeg/util";
 import { buildJob, isVideo, type JobInput, FONT_BODY, FONT_HEADING, LOGO_FILE } from "./reel";
 import { downloadFile } from "./drive";
-import { BROLL_MOVES, BROLL_SECONDS, framesArgs, joinArgs, type BrollMove, type BrollShot, type FocusPoint } from "./broll";
+import { BROLL_MOVES, BROLL_SECONDS, framesArgs, joinArgs, type BrollMove, type BrollShot, type Framing } from "./broll";
 import { getFile } from "./localMedia";
 import type { MediaRef, Storyboard } from "./types";
 
@@ -104,7 +104,7 @@ export async function renderReel(
 async function filmToFile(
   ff: FFmpeg,
   bmp: ImageBitmap,
-  shot: { move: BrollMove; seconds: number; seed: number; focus: FocusPoint },
+  shot: { move: BrollMove; seconds: number; dir: 1 | -1; framing: Framing },
   out: string,
   logs: string[],
   onFrame?: (done: number, total: number) => void,
@@ -143,9 +143,9 @@ export async function renderBroll(photo: MediaRef, moves: BrollMove[], onProgres
   onProgress({ value: 0, label: "Loading the video engine (first time takes a moment)…" });
   const ff = await getFFmpeg();
   onProgress({ value: 0.05, label: `Fetching ${photo.name}…` });
-  const { loadPhoto, findDetail } = await import("./brollRender");
+  const { loadPhoto, findFraming } = await import("./brollRender");
   const bmp = await loadPhoto(await blobFor(photo));
-  const focus = findDetail(bmp);
+  const framing = findFraming(bmp);
   const out: { move: BrollMove; video: Blob }[] = [];
   const { logs, stop } = collectLogs(ff);
   try {
@@ -154,7 +154,7 @@ export async function renderBroll(photo: MediaRef, moves: BrollMove[], onProgres
       const label = `Filming "${BROLL_MOVES[move].label.toLowerCase()}" (${i + 1} of ${moves.length})…`;
       onProgress({ value: base, label });
       const file = `broll-${move}.mp4`;
-      await filmToFile(ff, bmp, { move, seconds: BROLL_SECONDS, seed: 500 + i * 31, focus }, file, logs, (d, n) => onProgress({ value: base + (0.6 * d * 0.9) / n / moves.length, label }));
+      await filmToFile(ff, bmp, { move, seconds: BROLL_SECONDS, dir: i % 2 ? -1 : 1, framing }, file, logs, (d, n) => onProgress({ value: base + (0.6 * d * 0.9) / n / moves.length, label }));
       onProgress({ value: base + 0.6 * (0.9 / moves.length), label: `Saving "${BROLL_MOVES[move].label.toLowerCase()}"…` });
       const data = (await ff.readFile(file)) as Uint8Array;
       out.push({ move, video: new Blob([data], { type: "video/mp4" }) });
@@ -169,14 +169,14 @@ export async function renderBroll(photo: MediaRef, moves: BrollMove[], onProgres
 }
 
 /**
- * One B-roll video for a post: a hand-held style shot of each photo (with a
- * quick close-up cut after some of them), joined with straight cuts like real
- * footage. Silent, 1080 x 1920.
+ * One B-roll video for a post: a slow, smooth slide across each photo, each
+ * one going the opposite way to the last, joined with straight cuts. Silent,
+ * 1080 x 1920.
  */
 export async function renderBrollVideo(shots: BrollShot<MediaRef>[], onProgress: (p: Progress) => void): Promise<Blob> {
   onProgress({ value: 0, label: "Loading the video engine (first time takes a moment)…" });
   const ff = await getFFmpeg();
-  const { loadPhoto, findDetail } = await import("./brollRender");
+  const { loadPhoto, findFraming } = await import("./brollRender");
   const { logs, stop } = collectLogs(ff);
   const files: string[] = [];
   try {
@@ -186,17 +186,12 @@ export async function renderBrollVideo(shots: BrollShot<MediaRef>[], onProgress:
       onProgress({ value: at(0), label: `Fetching photo ${i + 1} of ${shots.length}…` });
       const bmp = await loadPhoto(await blobFor(shot.photo));
       try {
-        const focus = findDetail(bmp);
-        const label = `Filming shot ${i + 1} of ${shots.length} (${BROLL_MOVES[shot.move].label.toLowerCase()})…`;
-        const total = shot.seconds + shot.closeUp;
+        const seen = findFraming(bmp);
+        const framing = { ...seen, busy: shot.busy ?? seen.busy };
+        const label = `Filming shot ${i + 1} of ${shots.length} (${framing.busy ? "close" : "wide"}, ${shot.dir > 0 ? "left to right" : "right to left"})…`;
         const out = `bv-${i}.mp4`;
-        await filmToFile(ff, bmp, { move: shot.move, seconds: shot.seconds, seed: shot.seed, focus }, out, logs, (d, n) => onProgress({ value: at(0.1 + (0.6 * (d / n) * shot.seconds) / total), label }));
+        await filmToFile(ff, bmp, { move: shot.move, seconds: shot.seconds, dir: shot.dir, framing }, out, logs, (d, n) => onProgress({ value: at(0.1 + 0.7 * (d / n)), label }));
         files.push(out);
-        if (shot.closeUp > 0) {
-          const cu = `bv-${i}-close.mp4`;
-          await filmToFile(ff, bmp, { move: "detail", seconds: shot.closeUp, seed: shot.seed + 7, focus }, cu, logs, (d, n) => onProgress({ value: at(0.1 + 0.6 * (shot.seconds + (d / n) * shot.closeUp) / total), label: `Close-up of photo ${i + 1}…` }));
-          files.push(cu);
-        }
       } finally {
         bmp.close();
       }

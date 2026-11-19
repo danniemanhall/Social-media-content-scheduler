@@ -1,4 +1,4 @@
-import { cameraAt, detailFocus, rng, type BrollMove, type FocusPoint } from "./broll";
+import { analyseFraming, cameraAt, type BrollMove, type Framing } from "./broll";
 import { FPS, H, W } from "./reel";
 
 /**
@@ -34,8 +34,8 @@ export async function loadPhoto(blob: Blob): Promise<ImageBitmap> {
   return small;
 }
 
-/** The most detailed part of the photo, for close-ups. */
-export function findDetail(bmp: ImageBitmap): FocusPoint {
+/** How to frame the photo: busy scene or single product, where the subject and the detail are. */
+export function findFraming(bmp: ImageBitmap): Framing {
   const w = 96;
   const h = Math.max(8, Math.round((w * bmp.height) / bmp.width));
   const c = makeCanvas(w, h);
@@ -44,6 +44,7 @@ export function findDetail(bmp: ImageBitmap): FocusPoint {
   const px = g.getImageData(0, 0, w, h).data;
   const gray = new Float32Array(w * h);
   const weight = new Float32Array(w * h);
+  const colours = new Map<number, number>();
   for (let i = 0; i < w * h; i++) {
     const [r, gr, b] = [px[i * 4], px[i * 4 + 1], px[i * 4 + 2]];
     gray[i] = 0.299 * r + 0.587 * gr + 0.114 * b;
@@ -51,81 +52,41 @@ export function findDetail(bmp: ImageBitmap): FocusPoint {
     const hi = Math.max(r, gr, b);
     const sat = hi ? (hi - Math.min(r, gr, b)) / hi : 0;
     weight[i] = Math.min(1, Math.max(0.08, 1 - (sat - 0.2) * 4.5));
+    const bin = ((r >> 6) << 4) | ((gr >> 6) << 2) | (b >> 6);
+    colours.set(bin, (colours.get(bin) ?? 0) + 1);
   }
-  return detailFocus(gray, w, h, 0.4, weight);
+  return analyseFraming(gray, w, h, weight, Math.max(...colours.values()) / (w * h));
 }
 
-/** A tile of faint sensor noise, made once and shifted every frame. */
-let grainTile: AnyCanvas | null = null;
-function grain(): AnyCanvas {
-  if (grainTile) return grainTile;
-  const size = 256;
-  const c = makeCanvas(size, size);
-  const g = ctx2d(c);
-  const img = g.createImageData(size, size);
-  const r = rng(4242);
-  for (let i = 0; i < size * size; i++) {
-    // Roughly normal noise around mid-grey, so overlay neither brightens nor darkens.
-    const v = 128 + ((r() + r() + r() - 1.5) / 1.5) * 90;
-    img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = v;
-    img.data[i * 4 + 3] = 255;
-  }
-  g.putImageData(img, 0, 0);
-  grainTile = c;
-  return c;
-}
-
-/** Sub-frames blended per output frame: a little motion blur, like a phone's shutter. */
+/** Sub-frames blended per output frame: the soft motion blur of a film camera's shutter. */
 const SUBFRAMES = 3;
-/** Fraction of the frame time the "shutter" is open. */
+/** Fraction of the frame time the "shutter" is open (a 180 degree shutter). */
 const SHUTTER = 0.5;
-/** How strong the sensor grain is (0 to 1). Faint: felt more than seen. */
-const GRAIN = 0.05;
 
-/**
- * Films one shot: calls `onFrame` with each frame as a JPEG, in order.
- * `seed` changes the hand movement so no two shots move alike.
- */
+/** Films one shot: calls `onFrame` with each frame as a JPEG, in order. */
 export async function filmShot(
   bmp: ImageBitmap,
-  shot: { move: BrollMove; seconds: number; seed: number; focus: FocusPoint },
+  shot: { move: BrollMove; seconds: number; dir: 1 | -1; framing: Framing },
   onFrame: (jpeg: Uint8Array, index: number, total: number) => Promise<void> | void,
 ): Promise<number> {
   const canvas = makeCanvas(W, H);
   const g = ctx2d(canvas);
   g.imageSmoothingEnabled = true;
   g.imageSmoothingQuality = "high";
-  const canBlur = "filter" in g;
-  const tile = grain();
-  const r = rng(shot.seed + 99);
   const frames = Math.round(shot.seconds * FPS);
   const size = { width: bmp.width, height: bmp.height };
 
   for (let f = 0; f < frames; f++) {
-    g.setTransform(1, 0, 0, 1, 0, 0);
-    g.globalCompositeOperation = "source-over";
-    g.globalAlpha = 1;
     for (let k = 0; k < SUBFRAMES; k++) {
       const t = (f + (k / SUBFRAMES - 0.5) * SHUTTER) / FPS;
-      const cam = cameraAt(shot.move, Math.max(0, t), shot.seconds, size, shot.seed, shot.focus);
-      if (canBlur) g.filter = cam.blur > 0.05 ? `blur(${cam.blur.toFixed(2)}px)` : "none";
+      const cam = cameraAt(shot.move, Math.max(0, t), shot.seconds, size, shot.framing, shot.dir);
       // Running average of the sub-frames.
       g.globalAlpha = 1 / (k + 1);
-      g.setTransform(1, 0, 0, 1, W / 2, H / 2);
-      g.rotate(cam.roll);
-      g.scale(cam.scale, cam.scale);
-      g.translate(-cam.cx, -cam.cy);
+      g.setTransform(cam.scale, 0, 0, cam.scale, W / 2 - cam.cx * cam.scale, H / 2 - cam.cy * cam.scale);
       g.drawImage(bmp, 0, 0);
     }
-    if (canBlur) g.filter = "none";
-    g.setTransform(1, 0, 0, 1, 0, 0);
-    g.globalAlpha = GRAIN;
-    g.globalCompositeOperation = "overlay";
-    const ox = -Math.floor(r() * 256);
-    const oy = -Math.floor(r() * 256);
-    for (let y = oy; y < H; y += 256) for (let x = ox; x < W; x += 256) g.drawImage(tile, x, y);
-
-    const blob = "convertToBlob" in canvas ? await canvas.convertToBlob({ type: "image/jpeg", quality: 0.92 }) : await new Promise<Blob>((ok, bad) => canvas.toBlob((b) => (b ? ok(b) : bad(new Error("Couldn't draw a frame"))), "image/jpeg", 0.92));
+    g.globalAlpha = 1;
+    const blob = "convertToBlob" in canvas ? await canvas.convertToBlob({ type: "image/jpeg", quality: 0.95 }) : await new Promise<Blob>((ok, bad) => canvas.toBlob((b) => (b ? ok(b) : bad(new Error("Couldn't draw a frame"))), "image/jpeg", 0.95));
     await onFrame(new Uint8Array(await blob.arrayBuffer()), f, frames);
   }
   return frames;

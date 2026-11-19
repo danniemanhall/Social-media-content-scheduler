@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { lastUsedMap, suggestMedia, type IndexedMedia } from "../../lib/brandFit";
-import { brollPlan, BROLL_VIDEO_SHOT, brollVideoName } from "../../lib/broll";
+import { brollPlan, brollVideoName, planSeconds } from "../../lib/broll";
 import { addLocalFile } from "../../lib/localMedia";
 import { isImage, isVideo } from "../../lib/reel";
 import type { Progress } from "../../lib/render";
@@ -168,7 +168,7 @@ export function MediaStep({ slot, cal, lib, save, next }: StepProps) {
  * Optional: turn the chosen photos into one B-roll video, preview it, then
  * use it or keep the photos.
  */
-export function BrollStep({ slot, next }: StepProps) {
+export function BrollStep({ slot, lib, next }: StepProps) {
   const photos = (slot.stillMedia ?? slot.media).filter(isImage);
   const usingBroll = !!slot.stillMedia;
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -183,9 +183,9 @@ export function BrollStep({ slot, next }: StepProps) {
     setError(null);
     try {
       const { renderBrollVideo } = await import("../../lib/render");
-      const plan = brollPlan(photos);
+      const plan = brollPlan(photos, lib.tags);
       const blob = await renderBrollVideo(plan, setProgress);
-      setMade({ blob, url: URL.createObjectURL(blob), seconds: Math.round(plan.length * BROLL_VIDEO_SHOT) });
+      setMade({ blob, url: URL.createObjectURL(blob), seconds: Math.round(planSeconds(plan)) });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

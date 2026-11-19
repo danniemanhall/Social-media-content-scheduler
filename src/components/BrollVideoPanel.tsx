@@ -30,7 +30,7 @@ export function BrollVideoPanel({ slot, all, lib, save, onClose }: { slot: Slot;
   const [done, setDone] = useState(false);
 
   const chosen = ranked.filter((s) => !skipped.includes(s.media.id)).slice(0, count);
-  const plan = brollPlan(chosen.map((s) => s.media));
+  const plan = brollPlan(chosen.map((s) => s.media), lib.tags);
   const seconds = Math.round(planSeconds(plan));
 
   const make = async () => {
@@ -58,7 +58,7 @@ export function BrollVideoPanel({ slot, all, lib, save, onClose }: { slot: Slot;
         <div style={{ flex: 1 }}>
           <b>B-roll video for this post</b>
           <div className="hint">
-            The lifestyle photos that best fit the idea, each filmed like a phone in a steady hand (with quick close-ups of the rope detail) and cut together. Nothing added or relit. Swap out any photo that doesn't feel right.
+            The lifestyle photos that best fit the idea, each filmed with a slow, smooth slide (close on busy scenes, wider on a single piece), alternating direction and cut together. Nothing added or relit. Swap out any photo that doesn't feel right.
           </div>
         </div>
         <button className="btn ghost small" type="button" onClick={onClose} aria-label="Close B-roll video">✕</button>
@@ -70,14 +70,13 @@ export function BrollVideoPanel({ slot, all, lib, save, onClose }: { slot: Slot;
       ) : (
         <>
           <div className="bv-shots">
-            {plan.map(({ photo, move, closeUp }, i) => {
+            {plan.map(({ photo, move, dir }, i) => {
               const s = chosen[i];
               return (
                 <div className="bv-shot" key={photo.id}>
                   <Thumb media={photo} className="mthumb" />
                   <div className="hint">
-                    {i + 1}. {BROLL_MOVES[move].label}
-                    {closeUp > 0 && " + close-up"}
+                    {i + 1}. {BROLL_MOVES[move].label} {dir > 0 ? "→" : "←"}
                   </div>
                   {s.text && <div className="seen" title="What Claude saw in this picture">{s.text}</div>}
                   <button type="button" className="btn ghost small" disabled={!!progress} onClick={() => setSkipped((k) => [...k, photo.id])} title="Use the next best photo instead">
