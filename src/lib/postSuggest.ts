@@ -205,27 +205,29 @@ export interface Mood {
   words: string[];
   /** Search on Pixabay Music (free for commercial use, no credit needed). */
   search: string;
+  /** Search in the free music library (Openverse); one or two words work best there. */
+  free: string;
 }
 
 const MOODS: Record<Pillar, Mood[]> = {
   Craftsmanship: [
-    { label: "Calm acoustic guitar", words: ["acoustic", "guitar", "calm"], search: "calm acoustic guitar" },
-    { label: "Soft piano", words: ["piano", "soft"], search: "soft piano" },
+    { label: "Calm acoustic guitar", words: ["acoustic", "guitar", "calm"], search: "calm acoustic guitar", free: "acoustic" },
+    { label: "Soft piano", words: ["piano", "soft"], search: "soft piano", free: "piano" },
   ],
   Lifestyle: [
-    { label: "Warm lo-fi", words: ["lofi", "lo-fi", "chill", "warm"], search: "warm lofi" },
-    { label: "Light jazz", words: ["jazz", "cafe"], search: "light jazz cafe" },
+    { label: "Warm lo-fi", words: ["lofi", "lo-fi", "chill", "warm"], search: "warm lofi", free: "chill" },
+    { label: "Light jazz", words: ["jazz", "cafe"], search: "light jazz cafe", free: "jazz" },
   ],
   Product: [
-    { label: "Minimal piano", words: ["piano", "minimal"], search: "minimal piano" },
-    { label: "Elegant strings", words: ["strings", "elegant", "classical"], search: "elegant strings" },
+    { label: "Minimal piano", words: ["piano", "minimal"], search: "minimal piano", free: "piano" },
+    { label: "Elegant strings", words: ["strings", "elegant", "classical"], search: "elegant strings", free: "strings" },
   ],
-  Education: [{ label: "Soft ambient", words: ["ambient", "soft", "calm"], search: "soft ambient" }],
+  Education: [{ label: "Soft ambient", words: ["ambient", "soft", "calm"], search: "soft ambient", free: "ambient" }],
   "Brand story": [
-    { label: "Gentle folk", words: ["folk", "gentle", "acoustic"], search: "gentle folk" },
-    { label: "Cinematic strings", words: ["cinematic", "strings"], search: "cinematic emotional" },
+    { label: "Gentle folk", words: ["folk", "gentle", "acoustic"], search: "gentle folk", free: "folk" },
+    { label: "Cinematic strings", words: ["cinematic", "strings"], search: "cinematic emotional", free: "cinematic" },
   ],
-  Community: [{ label: "Upbeat acoustic", words: ["upbeat", "happy", "acoustic"], search: "upbeat acoustic" }],
+  Community: [{ label: "Upbeat acoustic", words: ["upbeat", "happy", "acoustic"], search: "upbeat acoustic", free: "upbeat" }],
 };
 
 /** Moods that suit the post: calm and warm, never loud, to match the brand. */

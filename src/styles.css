@@ -518,3 +518,11 @@ a.btn { text-decoration: none; }
 .flow .bad { color: var(--danger); }
 .flow-card .btn.ghost { border-color: var(--line); }
 .flow-preview .ig-grid { max-width: 330px; }
+
+/* Free music in the music step */
+.free-music { margin: 12px 0 18px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.free-music h4, .flow-card > h4 { margin: 0 0 6px; }
+.free-music .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.track .dim { color: var(--muted, #8a7f74); font-size: 13px; white-space: nowrap; }
+.track .name .dim { font-size: inherit; }
+@media (max-width: 560px) { .track { flex-wrap: wrap; } .track .name { flex-basis: calc(100% - 50px); } }

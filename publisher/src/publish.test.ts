@@ -93,6 +93,12 @@ describe("publisher", () => {
     expect(out.publish.attempts).toBe(1);
   });
 
+  it("credits CC BY music in the caption", () => {
+    const song = { title: "Lucky", source: "library" as const, credit: 'Music: "Lucky" by Jesse Keller (CC BY 3.0)' };
+    expect(captionOf({ caption: "A", cta: "", hashtags: ["#a"], song })).toBe('A\n\nMusic: "Lucky" by Jesse Keller (CC BY 3.0)\n\n#a');
+    expect(captionOf({ caption: "A", cta: "", hashtags: [], song: { title: "x", source: "instagram" } })).toBe("A");
+  });
+
   it("keeps captions to Instagram's 5 hashtags", () => {
     expect(captionOf({ caption: "A", cta: "", hashtags: ["#a", "#b", "#c", "#d", "#e", "#f", "#g"] })).toBe("A\n\n#a #b #c #d #e");
   });

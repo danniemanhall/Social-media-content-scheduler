@@ -4,6 +4,7 @@ import { isVideo } from "../../lib/reel";
 import type { Progress } from "../../lib/render";
 import { captionOptions, ctaOptions, hashtagOptions, HASHTAG_LIMIT, moodsFor, pixabayUrl, rankTracks } from "../../lib/postSuggest";
 import type { Track } from "../../lib/drive";
+import { creditFromName, creditOf, downloadFreeTrack, fileNameOf, lengthOf, licenseLabel, searchFreeMusic, type FreeTrack } from "../../lib/freeMusic";
 import type { MediaRef } from "../../lib/types";
 import { GridPreview } from "../GridPreview";
 import { PostingPanel } from "../PostingPanel";
@@ -46,7 +47,45 @@ export function MusicStep({ slot, save, next }: StepProps) {
     setPlaying({ id: t.id, url: URL.createObjectURL(await downloadFile(t.id)) });
   };
 
-  const choose = (t: Track) => save({ song: { title: t.name.replace(/\.[a-z0-9]+$/i, ""), source: "library", driveId: t.id }, music: "royalty-free" });
+  const songTitle = (name: string) => name.replace(/\.[a-z0-9]+$/i, "").replace(/ \((CC0|CC BY[^)]*)\)$/i, "");
+  const choose = (t: Track) =>
+    save({ song: { title: songTitle(t.name), source: "library", driveId: t.id, credit: creditFromName(t.name) }, music: "royalty-free" });
+
+  // Free music library (Openverse / Jamendo, CC0 and CC BY only).
+  const [freeQuery, setFreeQuery] = useState(moods[0]?.free ?? "instrumental");
+  const [free, setFree] = useState<{ query: string; page: number; tracks: FreeTrack[]; more: boolean } | null>(null);
+  const [freeBusy, setFreeBusy] = useState<string | null>(null);
+  const [freeError, setFreeError] = useState<string | null>(null);
+  const searchFree = async (query: string, page = 1) => {
+    setFreeQuery(query);
+    setFreeError(null);
+    setFreeBusy("search");
+    try {
+      const r = await searchFreeMusic(query, page);
+      setFree((f) => ({ query, page, more: r.more, tracks: page > 1 && f ? [...f.tracks, ...r.tracks.filter((t) => !f.tracks.some((x) => x.id === t.id))] : r.tracks }));
+    } catch (e) {
+      setFreeError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setFreeBusy(null);
+    }
+  };
+  useEffect(() => void searchFree(freeQuery), []);
+  const useFree = async (t: FreeTrack) => {
+    setFreeError(null);
+    setFreeBusy(t.id);
+    try {
+      const { saveTrack } = await import("../../lib/drive");
+      const name = fileNameOf(t);
+      const existing = tracks?.find((x) => x.name === name);
+      const saved = existing ?? (await saveTrack(new File([await downloadFreeTrack(t)], name, { type: "audio/mpeg" })));
+      if (!existing) setTracks((ts) => [...(ts ?? []), saved]);
+      save({ song: { title: `${t.title} by ${t.creator}`, source: "library", driveId: saved.id, credit: creditOf(t), link: t.page }, music: "royalty-free" });
+    } catch (e) {
+      setFreeError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setFreeBusy(null);
+    }
+  };
 
   const bake = async () => {
     if (!video || !slot.song?.driveId) return;
@@ -88,11 +127,57 @@ export function MusicStep({ slot, save, next }: StepProps) {
         Suggested for a {slot.pillar.toLowerCase()} {slot.format === "story" ? "story" : slot.format === "reel" ? "reel" : "post"}: {moods.map((m) => m.label.toLowerCase()).join(", ")}. Calm and warm, to suit Roopip.
       </p>
 
+      <div className="free-music">
+        <h4>Free music to choose from</h4>
+        <p className="hint">Instrumental tracks from Jamendo that may be used commercially (CC0 or CC BY). Press ▶ to listen. "Use this" saves the track to the "Roopip music" folder in Drive. Where the licence asks for a credit, the app adds it to the caption.</p>
+        <div className="chips">
+          {moods.map((m) => (
+            <button key={m.label} type="button" className={`chip tag ${free?.query === m.free ? "on" : ""}`} onClick={() => searchFree(m.free)}>
+              {m.label}
+            </button>
+          ))}
+        </div>
+        <form className="idea-ask" onSubmit={(e) => (e.preventDefault(), searchFree(freeQuery))}>
+          <input type="search" aria-label="Search free music" placeholder="Search, e.g. piano, guitar, jazz, ambient" value={freeQuery} onChange={(e) => setFreeQuery(e.target.value)} />
+          <button type="submit" className="btn" disabled={freeBusy === "search"}>Search</button>
+        </form>
+        <div className="music-list">
+          {freeBusy === "search" && !free && <p className="hint">Finding music…</p>}
+          {free && free.tracks.length === 0 && freeBusy !== "search" && <p className="hint">Nothing suitable for "{free.query}". Try one simple word, like piano or guitar.</p>}
+          {free?.tracks.map((t) => {
+            const chosen = slot.song?.source === "library" && slot.song.link === t.page && !!t.page;
+            return (
+              <div key={t.id} className={`track ${chosen ? "on" : ""}`}>
+                <button type="button" className="btn small ghost" onClick={() => setPlaying(playing?.id === t.id ? null : { id: t.id, url: t.url })} aria-label={`Play ${t.title}`}>
+                  {playing?.id === t.id ? "■" : "▶"}
+                </button>
+                <span className="name" title={`${t.title} by ${t.creator}`}>
+                  {t.title} <span className="dim">· {t.creator}</span>
+                </span>
+                <span className="dim">{lengthOf(t.seconds)}</span>
+                <span className="chip" title={licenseLabel(t)}>{t.license === "cc0" ? "CC0" : "CC BY"}</span>
+                <button type="button" className="btn small" disabled={!!freeBusy} onClick={() => useFree(t)}>
+                  {freeBusy === t.id ? "Saving…" : chosen ? "✓ Chosen" : "Use this"}
+                </button>
+              </div>
+            );
+          })}
+          {free?.more && (
+            <button type="button" className="btn small ghost" disabled={!!freeBusy} onClick={() => searchFree(free.query, free.page + 1)}>
+              {freeBusy === "search" ? "Loading…" : "More tracks"}
+            </button>
+          )}
+          {freeError && <div className="bad">{freeError}</div>}
+        </div>
+        {slot.song?.credit && <p className="hint">Caption credit: {slot.song.credit}</p>}
+      </div>
+
+      <h4>Your music folder</h4>
       <div className="music-list">
         {tracks === null && !error && <p className="hint">Looking in the "Roopip music" folder in Drive…</p>}
         {tracks?.length === 0 && (
           <p className="hint">
-            The "Roopip music" folder in Drive is empty. Add royalty-free tracks you're allowed to use commercially, for example from Pixabay Music:{" "}
+            The "Roopip music" folder in Drive is empty. Pick a free track above, or add tracks you're allowed to use commercially, for example from Pixabay Music:{" "}
             {moods.map((m, i) => (
               <span key={m.label}>
                 {i ? ", " : ""}
@@ -107,7 +192,7 @@ export function MusicStep({ slot, save, next }: StepProps) {
             <button type="button" className="btn small ghost" onClick={() => preview(track)} aria-label={`Play ${track.name}`}>
               {playing?.id === track.id ? "■" : "▶"}
             </button>
-            <span className="name">{track.name.replace(/\.[a-z0-9]+$/i, "")}</span>
+            <span className="name">{songTitle(track.name)}</span>
             {mood && <span className="chip">{mood}</span>}
             <button type="button" className="btn small" onClick={() => choose(track)}>
               {slot.song?.driveId === track.id ? "✓ Chosen" : "Use this"}
