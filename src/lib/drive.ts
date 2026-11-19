@@ -392,3 +392,29 @@ export async function saveToAppFolder(folderName: string, name: string, file: Bl
   );
   return toItem((await res.json()) as DriveFile);
 }
+
+export const MUSIC_FOLDER = "Roopip music";
+
+export interface Track {
+  id: string;
+  name: string;
+  link?: string;
+}
+
+/**
+ * Tracks in the "Roopip music" folder in Drive: royalty-free music cleared for
+ * commercial use (for example from Pixabay Music). Made if it doesn't exist yet.
+ */
+export async function listMusic(): Promise<Track[]> {
+  const folder = await appFolder(MUSIC_FOLDER);
+  const q = `'${folder}' in parents and trashed = false and mimeType contains 'audio/'`;
+  const params = new URLSearchParams({ q, pageSize: "200", orderBy: "name", fields: "files(id, name, webViewLink)", supportsAllDrives: "true", includeItemsFromAllDrives: "true" });
+  const body = (await (await authed(`https://www.googleapis.com/drive/v3/files?${params}`)).json()) as { files: { id: string; name: string; webViewLink?: string }[] };
+  return body.files.map((f) => ({ id: f.id, name: f.name, link: f.webViewLink }));
+}
+
+/** Adds a music file to the "Roopip music" folder. */
+export async function saveTrack(file: File): Promise<Track> {
+  const saved = await saveToAppFolder(MUSIC_FOLDER, file.name, file, file.type || "audio/mpeg");
+  return { id: saved.id, name: saved.name, link: saved.link };
+}
