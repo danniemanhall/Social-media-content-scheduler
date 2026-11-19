@@ -3,10 +3,14 @@ import { DayCell } from "../components/DayCell";
 import { addDays, monthName, shortDate, todayISO, weekStart } from "../lib/dates";
 import type { Calendar } from "../lib/useCalendar";
 import type { Slot } from "../lib/types";
+import { lastDay, occurrences, type BrandEvent } from "../lib/events";
+import type { EventsState } from "../lib/useEvents";
+import { EventEditor } from "../components/EventEditor";
 
 type View = "month" | "week";
 
-export function CalendarScreen({ cal, onOpen }: { cal: Calendar; onOpen: (s: Slot) => void }) {
+export function CalendarScreen({ cal, ev, onOpen }: { cal: Calendar; ev?: EventsState; onOpen: (s: Slot) => void }) {
+  const [editing, setEditing] = useState<BrandEvent | null>(null);
   const [view, setView] = useState<View>("month");
   const [anchor, setAnchor] = useState(todayISO());
 
@@ -24,6 +28,12 @@ export function CalendarScreen({ cal, onOpen }: { cal: Calendar; onOpen: (s: Slo
     for (let d = gridStart; d <= gridEnd; d = addDays(d, 1)) out.push(d);
     return out;
   }, [gridStart, gridEnd]);
+
+  const occ = useMemo(() => (ev ? occurrences(ev.visible, gridStart, gridEnd) : []), [ev, gridStart, gridEnd]);
+  const openEvent = (id: string) => {
+    const saved = ev?.events.find((e) => e.id === id);
+    if (saved) setEditing(saved);
+  };
 
   const step = (dir: number) => {
     if (view === "week") setAnchor(addDays(anchor, 7 * dir));
@@ -64,9 +74,15 @@ export function CalendarScreen({ cal, onOpen }: { cal: Calendar; onOpen: (s: Slo
             onOpen={onOpen}
             onMove={(id, d) => void cal.move(id, d)}
             onAdd={async (d, f) => onOpen(await cal.add(d, f))}
+            events={occ.filter((e) => e.start <= date && lastDay(e) >= date)}
+            deadlines={occ.filter((e) => e.submitBy === date)}
+            onEvent={(e) => openEvent(e.eventId)}
           />
         ))}
       </div>
+      {editing && ev && (
+        <EventEditor event={editing} onSave={(e) => void ev.save([e])} onRemove={(id) => void ev.remove(id)} onClose={() => setEditing(null)} />
+      )}
     </div>
   );
 }

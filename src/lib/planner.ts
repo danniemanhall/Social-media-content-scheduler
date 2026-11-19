@@ -1,4 +1,5 @@
 import { IDEAS } from "./ideas";
+import { DOC_IDEAS } from "./playbook";
 import { PILLARS } from "./brand";
 import { addDays, monthOf, toUTC, weekStart } from "./dates";
 import type { Format, Idea, Slot, TemplateSlot } from "./types";
@@ -241,11 +242,14 @@ export function planRange(
 /** Settings key holding ideas Claude added on its monthly run. */
 export const EXTRA_IDEAS_KEY = "extraIdeas";
 
+/** Built-in ideas: the starter bank plus the ideas from the Drive playbook doc. */
+export const BUILT_IN_IDEAS: Idea[] = [...IDEAS, ...DOC_IDEAS];
+
 /** The built-in bank plus Claude's ideas. A Claude idea with a built-in id is ignored. */
 export function ideaBank(extra: Idea[] | null | undefined): Idea[] {
-  if (!extra?.length) return IDEAS;
-  const ids = new Set(IDEAS.map((i) => i.id));
-  return [...IDEAS, ...extra.filter((i) => i && !ids.has(i.id) && i.format && i.title)];
+  if (!extra?.length) return BUILT_IN_IDEAS;
+  const ids = new Set(BUILT_IN_IDEAS.map((i) => i.id));
+  return [...BUILT_IN_IDEAS, ...extra.filter((i) => i && !ids.has(i.id) && i.format && i.title)];
 }
 
 export { PILLARS };
