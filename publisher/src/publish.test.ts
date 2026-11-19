@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { captionOf, dueAt, processSlot, type Fetch } from "./publish";
+import { captionOf, dueAt, processSlot, readStats, wantsStats, type Fetch } from "./publish";
 import { planWeek } from "../../src/lib/planner";
 import type { Slot } from "../../src/lib/types";
 
@@ -91,5 +91,42 @@ describe("publisher", () => {
     const out = await processSlot(slot("post", [img("a.jpg")]), cfg, fetcher);
     expect(out).toMatchObject({ kind: "failed", message: "Bad aspect ratio" });
     expect(out.publish.attempts).toBe(1);
+  });
+
+  it("keeps captions to Instagram's 5 hashtags", () => {
+    expect(captionOf({ caption: "A", cta: "", hashtags: ["#a", "#b", "#c", "#d", "#e", "#f", "#g"] })).toBe("A\n\n#a #b #c #d #e");
+  });
+
+  it("posts every frame of a multi-photo story, in order, and resumes after a wait", async () => {
+    const g = fakeGraph(["FINISHED", "IN_PROGRESS"]);
+    const s = slot("story", [img("a"), vid("b"), img("c")]);
+    const first = await processSlot(s, cfg, g.fetcher);
+    expect(first.kind).toBe("waiting");
+    expect(first.publish.ig?.frames?.[0].mediaId).toBeTruthy();
+    expect(first.publish.ig?.frames?.[1].mediaId).toBeUndefined();
+    const second = await processSlot({ ...s, publish: first.publish }, cfg, g.fetcher);
+    expect(second.kind).toBe("posted");
+    const creates = g.calls.filter((c) => c.path === "ig1/media");
+    expect(creates.map((c) => c.params.image_url ?? c.params.video_url)).toEqual(["https://r2/a", "https://r2/b", "https://r2/c"]);
+    expect(creates.every((c) => c.params.media_type === "STORIES")).toBe(true);
+    expect(g.calls.filter((c) => c.path === "ig1/media_publish")).toHaveLength(3);
+    expect(second.publish.fb?.skipped).toBeTruthy();
+  });
+
+  it("reads a post's reach and interactions, daily for two weeks", async () => {
+    const fetcher: Fetch = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [{ name: "reach", values: [{ value: 120 }] }, { name: "total_interactions", total_value: { value: 9 } }] }),
+    });
+    const stats = await readStats("m1", "post", cfg, fetcher, new Date("2026-12-01T10:00:00Z"));
+    expect(stats).toEqual({ reach: 120, interactions: 9, saves: undefined, shares: undefined, at: "2026-12-01T10:00:00.000Z" });
+    const posted = { ...slot("post", [img("a")]), status: "posted" as const };
+    posted.publish = { ...posted.publish!, ig: { mediaId: "m1" }, postedAt: "2026-12-01T10:00:00Z" };
+    const now = Date.parse("2026-12-02T12:00:00Z");
+    expect(wantsStats(posted, now)).toBe(true);
+    expect(wantsStats({ ...posted, publish: { ...posted.publish!, stats: { reach: 1, at: "2026-12-02T08:00:00Z" } } }, now)).toBe(false);
+    expect(wantsStats(posted, Date.parse("2026-12-20T12:00:00Z"))).toBe(false);
+    expect(wantsStats({ ...posted, format: "story" }, now)).toBe(false); // stories' numbers are gone after a day
   });
 });

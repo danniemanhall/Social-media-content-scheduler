@@ -4,7 +4,7 @@ import { isVideo } from "../../lib/reel";
 import type { Progress } from "../../lib/render";
 import { captionOptions, ctaOptions, hashtagOptions, HASHTAG_LIMIT, moodsFor, pixabayUrl, rankTracks } from "../../lib/postSuggest";
 import type { Track } from "../../lib/drive";
-import type { MediaRef, Slot } from "../../lib/types";
+import type { MediaRef } from "../../lib/types";
 import { GridPreview } from "../GridPreview";
 import { PostingPanel } from "../PostingPanel";
 import { ReelEditor } from "../ReelEditor";

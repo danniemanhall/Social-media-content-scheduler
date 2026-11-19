@@ -15,8 +15,16 @@ export function PostingPanel({ slot, save }: { slot: Slot; save: (patch: Partial
   const pub = slot.publish;
   if (!["approved", "scheduled", "posted"].includes(slot.status) && !pub?.error) return null;
 
-  if (slot.format === "reel" && slot.music === "instagram") {
-    return <div className="hint-text">This reel uses Instagram music, so it's posted by hand: download it from the reel editor and add the sound in Instagram.</div>;
+  if (slot.music === "instagram") {
+    if (slot.status === "posted") return <div className="hint-text">Posted by hand.</div>;
+    return (
+      <div>
+        <div className="hint-text">
+          This {slot.format === "story" ? "story" : "post"} uses {slot.song ? <b>{slot.song.title}</b> : "a song"} from Instagram, so it's posted by hand: at <b>{when(slot)}</b> the app shows a reminder. Save the {slot.format === "reel" ? "reel" : "photos"} to your phone, post it in Instagram and add the song.
+        </div>
+        <button className="btn small" type="button" onClick={() => save({ status: "posted" })}>I've posted it</button>
+      </div>
+    );
   }
 
   if (slot.status === "posted" && pub?.postedAt) {

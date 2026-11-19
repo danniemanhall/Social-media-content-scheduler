@@ -21,10 +21,11 @@ describe("checkMedia", () => {
 });
 
 describe("cropBox", () => {
-  it("keeps photos Instagram accepts, crops tall ones to 4:5 and stories to 9:16", () => {
+  it("crops grid photos to 4:5 and stories to 9:16, centred", () => {
     expect(cropBox(1080, 1350, false)).toEqual({ x: 0, y: 0, w: 1080, h: 1350 });
     expect(cropBox(1080, 1920, false)).toEqual({ x: 0, y: 285, w: 1080, h: 1350 });
-    expect(cropBox(4000, 1000, false)).toEqual({ x: 1045, y: 0, w: 1910, h: 1000 });
+    expect(cropBox(4000, 1000, false)).toEqual({ x: 1600, y: 0, w: 800, h: 1000 });
+    expect(cropBox(1080, 1080, false)).toEqual({ x: 108, y: 0, w: 864, h: 1080 });
     expect(cropBox(1080, 1080, true)).toEqual({ x: 236, y: 0, w: 608, h: 1080 });
   });
 });

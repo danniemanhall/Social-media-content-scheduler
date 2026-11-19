@@ -168,7 +168,7 @@ export function MediaStep({ slot, cal, lib, save, next }: StepProps) {
  * Optional: turn the chosen photos into one B-roll video, preview it, then
  * use it or keep the photos.
  */
-export function BrollStep({ slot, save, next }: StepProps) {
+export function BrollStep({ slot, next }: StepProps) {
   const photos = (slot.stillMedia ?? slot.media).filter(isImage);
   const usingBroll = !!slot.stillMedia;
   const [progress, setProgress] = useState<Progress | null>(null);

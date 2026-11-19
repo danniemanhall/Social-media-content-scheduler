@@ -117,7 +117,7 @@ const CLAIM_FOR: Record<Pillar, string> = {
   Product: "Handmade in Knysna, South Africa.",
   Lifestyle: "Handmade in Knysna, South Africa, for calm, considered homes.",
   Craftsmanship: "Every piece is handmade in Knysna, South Africa.",
-  Education: "Our polypropylene rope is water-resistant, so it wipes clean easily.",
+  Education: "Handmade in Knysna, South Africa, to be used every day.",
   "Brand story": "Our cotton rope is sun-dyed by hand in small batches, without electricity.",
   Community: "Handmade in Knysna, South Africa.",
 };

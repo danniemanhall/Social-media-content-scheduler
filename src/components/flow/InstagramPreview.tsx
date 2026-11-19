@@ -40,8 +40,17 @@ function Caption({ slot, full }: { slot: Slot; full?: boolean }) {
   const [open, setOpen] = useState(!!full);
   const tags = slot.hashtags.slice(0, HASHTAG_LIMIT).join(" ");
   const text = [slot.caption, slot.cta].filter(Boolean).join("\n\n");
+  const short = text.split("\n")[0].slice(0, 80);
+  if (!open && (short.length < text.length || tags)) {
+    return (
+      <div className="ig-caption" onClick={() => setOpen(true)}>
+        <b>roopip</b> {short.trim()}
+        <span className="ig-more">… more</span>
+      </div>
+    );
+  }
   return (
-    <div className={`ig-caption ${open ? "open" : ""}`} onClick={() => setOpen(true)}>
+    <div className="ig-caption open">
       <b>roopip</b> {text}
       {tags && (
         <>
@@ -49,7 +58,6 @@ function Caption({ slot, full }: { slot: Slot; full?: boolean }) {
           <span className="ig-tags">{tags}</span>
         </>
       )}
-      {!open && <span className="ig-more">… more</span>}
     </div>
   );
 }

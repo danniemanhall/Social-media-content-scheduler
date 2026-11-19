@@ -3,7 +3,7 @@
  * scheduled calendar slots that are due, and clears their files from the
  * R2 outbox afterwards.
  */
-import { dueAt, processSlot, MAX_ATTEMPTS, type MetaConfig } from "./publish";
+import { dueAt, processSlot, readStats, wantsStats, MAX_ATTEMPTS, type MetaConfig } from "./publish";
 import type { Slot } from "../../src/lib/types";
 
 interface Env {
@@ -55,6 +55,28 @@ async function run(env: Env) {
     const saved = await save(env, row, next);
     if (saved && clear) await env.OUTBOX.delete(out.publish.files.map((f) => f.key));
     console.log(`${slot.date} ${slot.title}: ${out.kind}${out.kind === "failed" ? ` (${out.message})` : ""}`);
+  }
+  await collectStats(env, cfg, today);
+}
+
+/** Reads reach and interactions for recent posts, so the app can suggest Roopip's own best times. */
+async function collectStats(env: Env, cfg: MetaConfig, today: string) {
+  const from = new Date(Date.parse(today) - 15 * 86_400_000).toISOString().slice(0, 10);
+  const { results } = await env.DB.prepare(
+    "SELECT id, updated_at, data FROM slots WHERE json_extract(data, '$.status') = 'posted' AND date >= ?1 ORDER BY date DESC",
+  )
+    .bind(from)
+    .all<{ id: string; updated_at: string; data: string }>();
+  let n = 0;
+  for (const row of results) {
+    const slot = JSON.parse(row.data) as Slot;
+    if (!wantsStats(slot) || n++ >= 10) continue;
+    try {
+      const stats = await readStats(slot.publish!.ig!.mediaId!, slot.format, cfg, (url, init) => fetch(url, init));
+      if (stats) await save(env, row, { ...slot, publish: { ...slot.publish!, stats } });
+    } catch (e) {
+      console.log(`Stats for ${slot.date} ${slot.title} failed: ${e instanceof Error ? e.message : e}`);
+    }
   }
 }
 

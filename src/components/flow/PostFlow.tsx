@@ -2,7 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { FORMAT_LABEL } from "../../lib/brand";
 import { dayName, shortDate } from "../../lib/dates";
 import { isOpen } from "../../lib/planner";
-import { applyIdea, rankIdeas } from "../../lib/postSuggest";
+import { applyIdea, formatsFor, rankIdeas } from "../../lib/postSuggest";
+import { suggestIdeas } from "../../lib/suggest";
+import { addDays } from "../../lib/dates";
+import type { BrandEvent } from "../../lib/events";
 import type { MediaLibraryState } from "../../lib/mediaIndex";
 import type { Calendar } from "../../lib/useCalendar";
 import type { FlowStep, Idea, Slot } from "../../lib/types";
@@ -34,6 +37,7 @@ export function stepsFor(slot: Slot): FlowStep[] {
 
 export interface StepProps {
   slot: Slot;
+  events: BrandEvent[];
   cal: Calendar;
   lib: MediaLibraryState;
   save: (patch: Partial<Slot>) => void;
@@ -44,7 +48,21 @@ export interface StepProps {
  * Making a post, one question at a time: Canva first, then the idea, shot
  * list, media, B-roll, music, words, time and a true-to-life preview.
  */
-export function PostFlow({ slot, cal, lib, onClose, onDetails }: { slot: Slot; cal: Calendar; lib: MediaLibraryState; onClose: () => void; onDetails: () => void }) {
+export function PostFlow({
+  slot,
+  cal,
+  lib,
+  events,
+  onClose,
+  onDetails,
+}: {
+  slot: Slot;
+  cal: Calendar;
+  lib: MediaLibraryState;
+  events: BrandEvent[];
+  onClose: () => void;
+  onDetails: () => void;
+}) {
   const [draft, setDraft] = useState<Slot>(slot);
   // Typing saves after a short pause, so each key press isn't a save.
   const pending = useRef<Slot | null>(null);
@@ -84,7 +102,7 @@ export function PostFlow({ slot, cal, lib, onClose, onDetails }: { slot: Slot; c
     const i = all.indexOf(step);
     go(all[Math.min(all.length - 1, i + 1)], patch);
   };
-  const props: StepProps = { slot: draft, cal, lib, save, next };
+  const props: StepProps = { slot: draft, events, cal, lib, save, next };
 
   return (
     <>
@@ -178,15 +196,31 @@ function CanvaStep({ slot, save, go }: StepProps & { go: (s: FlowStep, patch?: P
 
 const PAGE = 10;
 
-function IdeaStep({ slot, cal, save, next }: StepProps) {
+/**
+ * Ten ideas at a time from the brain (suggest.ts: the idea bank, the Drive
+ * playbook's weekly theme and the events calendar), with ideas used within
+ * 8 weeks left out. Typing what you're after puts matching ideas first.
+ */
+function IdeaStep({ slot, cal, events, save, next }: StepProps) {
   const [query, setQuery] = useState("");
   const [asked, setAsked] = useState("");
-  const [page, setPage] = useState(0);
+  const [seen, setSeen] = useState<string[]>([]);
   const [editing, setEditing] = useState(!!slot.ideaId);
-  const ranked = useMemo(() => rankIdeas(slot, cal.ideas, cal.slots, asked), [slot.id, slot.date, slot.format, cal.ideas, cal.slots, asked]);
-  const pages = Math.max(1, Math.ceil(ranked.length / PAGE));
-  const shown = ranked.slice((page % pages) * PAGE, (page % pages) * PAGE + PAGE);
-  const matches = asked ? ranked.filter((r) => r.matched).length : 0;
+  const recent = useMemo(
+    () => cal.slots.filter((s) => s.id !== slot.id && s.ideaId && s.date >= addDays(slot.date, -56) && s.date <= addDays(slot.date, 56)).map((s) => s.ideaId),
+    [cal.slots, slot.id, slot.date],
+  );
+  const run = (shown: string[]) =>
+    suggestIdeas({ date: slot.date, formats: formatsFor(slot.format), bank: cal.ideas, events, count: PAGE, exclude: [...recent, ...shown], seed: slot.id });
+  const out = useMemo(() => {
+    const r = run(seen);
+    return r.ideas.length ? r : run([]);
+  }, [slot.date, slot.format, cal.ideas, events, recent, seen]); // eslint-disable-line react-hooks/exhaustive-deps
+  const matches = useMemo(() => (asked ? rankIdeas(slot, cal.ideas, cal.slots, asked).filter((r) => r.matched).slice(0, PAGE) : []), [asked, cal.ideas]); // eslint-disable-line react-hooks/exhaustive-deps
+  const list: { idea: Idea; reason: string; matched?: boolean }[] = [
+    ...matches.map((m) => ({ idea: m.idea, reason: `About "${asked}"`, matched: true })),
+    ...out.ideas.filter((i) => !matches.some((m) => m.idea.id === i.id)).map(({ reason, eventId: _e, ...idea }) => ({ idea, reason })),
+  ].slice(0, PAGE + matches.length);
 
   const choose = (idea: Idea) => {
     save(applyIdea(slot, idea));
@@ -227,12 +261,17 @@ function IdeaStep({ slot, cal, save, next }: StepProps) {
   return (
     <div className="flow-card">
       <h3>{kindLabel(slot)[0].toUpperCase() + kindLabel(slot).slice(1)} ideas for {dateLabel(slot)}</h3>
+      <p className="hint">
+        <b>This week: {out.theme.name}.</b> {out.theme.focus}
+      </p>
+      {out.tasks.map((t) => (
+        <p key={t} className="ym-task">⚑ {t}</p>
+      ))}
       <form
         className="idea-ask"
         onSubmit={(e) => {
           e.preventDefault();
           setAsked(query.trim());
-          setPage(0);
         }}
       >
         <input type="search" placeholder="Ideas about… (for example: summer table, gifting, olive placemats)" value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -240,7 +279,7 @@ function IdeaStep({ slot, cal, save, next }: StepProps) {
       </form>
       {asked && (
         <p className="hint">
-          {matches ? `${matches} idea${matches === 1 ? "" : "s"} about "${asked}" first.` : `Nothing in the idea bank about "${asked}" yet.`}{" "}
+          {matches.length ? `${matches.length} idea${matches.length === 1 ? "" : "s"} about "${asked}" first.` : `Nothing in the idea bank about "${asked}" yet.`}{" "}
           <button
             type="button"
             className="linkish"
@@ -252,7 +291,7 @@ function IdeaStep({ slot, cal, save, next }: StepProps) {
         </p>
       )}
       <div className="idea-list">
-        {shown.map(({ idea, why, matched }) => (
+        {list.map(({ idea, reason, matched }) => (
           <button key={idea.id} type="button" className={`idea-card ${matched ? "match" : ""}`} onClick={() => choose(idea)}>
             <b>{idea.title}</b>
             <span>{idea.prompt}</span>
@@ -261,16 +300,14 @@ function IdeaStep({ slot, cal, save, next }: StepProps) {
               {idea.product && <span className="chip">{idea.product}</span>}
               {idea.format === "carousel" && <span className="chip">Carousel</span>}
             </span>
-            {why.length > 0 && <span className="hint">{why.join(" · ")}</span>}
+            <span className="hint">{reason}</span>
           </button>
         ))}
       </div>
       <div className="flow-nav">
-        {ranked.length > PAGE && (
-          <button type="button" className="btn" onClick={() => setPage((p) => p + 1)}>
-            Suggest {PAGE} other ideas
-          </button>
-        )}
+        <button type="button" className="btn" onClick={() => setSeen((s) => [...s, ...out.ideas.map((i) => i.id)])}>
+          Suggest {PAGE} other ideas
+        </button>
         <button type="button" className="btn ghost" onClick={ownIdea}>Write my own idea</button>
       </div>
     </div>
