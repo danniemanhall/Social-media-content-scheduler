@@ -7,11 +7,14 @@ import { BrandScreen } from "./screens/BrandScreen";
 import { CalendarScreen } from "./screens/CalendarScreen";
 import { MediaLibrary } from "./screens/MediaLibrary";
 import { Overview } from "./screens/Overview";
+import { YearScreen } from "./screens/YearScreen";
+import { useEvents } from "./lib/useEvents";
 import type { Slot } from "./lib/types";
 
-type Tab = "overview" | "calendar" | "media" | "brand";
+type Tab = "overview" | "year" | "calendar" | "media" | "brand";
 const TABS: { id: Tab; label: string }[] = [
   { id: "overview", label: "Overview" },
+  { id: "year", label: "Year ahead" },
   { id: "calendar", label: "Calendar" },
   { id: "media", label: "Media" },
   { id: "brand", label: "Brand & ideas" },
@@ -36,6 +39,7 @@ export default function App() {
 function Shell({ store, email }: { store: Store; email: string | null }) {
   const cal = useCalendar(store);
   const lib = useMediaLibrary(store);
+  const ev = useEvents(store);
   const [tab, setTab] = useState<Tab>(initialTab);
   const [openId, setOpenId] = useState<string | null>(null);
   const open = (s: Slot) => setOpenId(s.id);
@@ -70,12 +74,13 @@ function Shell({ store, email }: { store: Store; email: string | null }) {
       </header>
       <main>
         {cal.error && <div className="banner error">{cal.error}</div>}
-        {tab === "overview" && <Overview cal={cal} onOpen={open} />}
-        {tab === "calendar" && <CalendarScreen cal={cal} onOpen={open} />}
+        {tab === "overview" && <Overview cal={cal} events={ev.visible} onOpen={open} onYear={() => setTab("year")} />}
+        {tab === "year" && <YearScreen cal={cal} ev={ev} store={store} onOpen={open} />}
+        {tab === "calendar" && <CalendarScreen cal={cal} ev={ev} onOpen={open} />}
         {tab === "media" && <MediaLibrary lib={lib} />}
         {tab === "brand" && <BrandScreen ideas={cal.ideas} lib={lib} />}
       </main>
-      {openSlot && <SlotDrawer slot={openSlot} cal={cal} lib={lib} onClose={() => setOpenId(null)} />}
+      {openSlot && <SlotDrawer slot={openSlot} cal={cal} lib={lib} events={ev.visible} onClose={() => setOpenId(null)} />}
     </>
   );
 }
