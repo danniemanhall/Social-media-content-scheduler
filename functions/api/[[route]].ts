@@ -4,12 +4,25 @@
  * the signed-in user's email as a request header.
  */
 import { connectGoogle, disconnectGoogle, googleReady, googleToken, GoogleError } from "../../server/google";
+import {
+  canvaAuthorizeUrl,
+  canvaCallback,
+  CanvaError,
+  canvaStatus,
+  disconnectCanva,
+  exportStatus,
+  listDesigns,
+  startExport,
+} from "../../server/canva";
 
 interface Env {
   DB: D1Database;
   /** Google OAuth client (public) and its secret, for keeping Drive connected. */
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
+  /** Canva Connect integration (public id) and its secret, for the Canva browser in the post flow. */
+  CANVA_CLIENT_ID?: string;
+  CANVA_CLIENT_SECRET?: string;
   /** R2 bucket Meta fetches post files from. Optional until Phase 4 is set up. */
   OUTBOX?: R2Bucket;
   /** Public base URL of the outbox bucket, e.g. https://pub-xxxx.r2.dev */
@@ -50,6 +63,16 @@ export function canvaUrl(raw: string | null): string | null {
   } catch {
     return null;
   }
+}
+
+/** The Canva sign-in opens in a pop-up; this tells the app how it went and closes it. */
+function closePage(error: string) {
+  const payload = JSON.stringify({ type: "roopip-canva", ok: !error, error }).replace(/</g, "\\u003c");
+  const text = error ? `Couldn't connect Canva: ${error.replace(/[<>&]/g, "")}` : "Canva is connected. You can close this window.";
+  return new Response(
+    `<!doctype html><meta charset="utf-8"><title>Canva</title><body style="font-family:sans-serif;padding:24px">${text}<script>try{opener&&opener.postMessage(${payload},location.origin)}catch(e){}setTimeout(function(){close()},${error ? 8000 : 600})</script>`,
+    { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } },
+  );
 }
 
 export const onRequest: PagesFunction<Env> = async ({ request, env, params }) => {
@@ -105,6 +128,39 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params }) =>
       return json({ connected: false });
     }
 
+    // Roopip's Canva account (see server/canva.ts).
+    if (route === "canva/status" && request.method === "GET") return json(await canvaStatus(env));
+    if (route === "canva/start" && request.method === "GET") {
+      return Response.redirect(await canvaAuthorizeUrl(env, url.origin), 302);
+    }
+    if (route === "canva/callback" && request.method === "GET") {
+      const err = url.searchParams.get("error");
+      let message = "";
+      if (err) message = url.searchParams.get("error_description") ?? err;
+      else {
+        try {
+          await canvaCallback(env, url.origin, url.searchParams.get("code") ?? "", url.searchParams.get("state") ?? "", user || null);
+        } catch (e) {
+          message = e instanceof Error ? e.message : String(e);
+        }
+      }
+      return closePage(message);
+    }
+    if (route === "canva/disconnect" && request.method === "POST") {
+      await disconnectCanva(env);
+      return json({ connected: false });
+    }
+    if (route === "canva/designs" && request.method === "GET") {
+      return json(await listDesigns(env, url.searchParams.get("query") ?? "", url.searchParams.get("continuation") ?? ""));
+    }
+    if (route === "canva/export" && request.method === "POST") {
+      const { designId, kind } = (await request.json()) as { designId?: string; kind?: string };
+      if (!designId || !/^[\w-]{1,64}$/.test(designId)) return json({ error: "No design." }, 400);
+      return json(await startExport(env, designId, kind === "mp4" ? "mp4" : "jpg"));
+    }
+    const job = route.match(/^canva\/export\/([\w-]{1,80})$/);
+    if (job && request.method === "GET") return json(await exportStatus(env, job[1]));
+
     if (route === "slots" && request.method === "GET") {
       const from = url.searchParams.get("from") ?? "";
       const to = url.searchParams.get("to") ?? "";
@@ -157,6 +213,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params }) =>
     return json({ error: "not found" }, 404);
   } catch (err) {
     if (err instanceof GoogleError) return json({ error: err.message }, err.status);
+    if (err instanceof CanvaError) return json({ error: err.message }, err.status);
     return json({ error: String(err) }, 500);
   }
 };

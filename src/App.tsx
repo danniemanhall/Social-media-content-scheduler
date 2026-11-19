@@ -9,6 +9,8 @@ import { MediaLibrary } from "./screens/MediaLibrary";
 import { Overview } from "./screens/Overview";
 import { YearScreen } from "./screens/YearScreen";
 import { useEvents } from "./lib/useEvents";
+import { PostFlow } from "./components/flow/PostFlow";
+import { HandPostReminders } from "./components/HandPostReminders";
 import type { Slot } from "./lib/types";
 
 type Tab = "overview" | "year" | "calendar" | "media" | "brand";
@@ -42,8 +44,14 @@ function Shell({ store, email }: { store: Store; email: string | null }) {
   const ev = useEvents(store);
   const [tab, setTab] = useState<Tab>(initialTab);
   const [openId, setOpenId] = useState<string | null>(null);
-  const open = (s: Slot) => setOpenId(s.id);
+  // Posts open in the guided steps; ones made before the steps open with every field on one page.
+  const [details, setDetails] = useState(false);
+  const open = (s: Slot) => {
+    setOpenId(s.id);
+    setDetails(!s.step && !!s.ideaId);
+  };
   const openSlot = openId ? cal.byId[openId] : undefined;
+  const close = () => setOpenId(null);
 
   useEffect(() => {
     history.replaceState(null, "", `#${tab}`);
@@ -74,13 +82,19 @@ function Shell({ store, email }: { store: Store; email: string | null }) {
       </header>
       <main>
         {cal.error && <div className="banner error">{cal.error}</div>}
+        <HandPostReminders slots={cal.slots} onOpen={open} />
         {tab === "overview" && <Overview cal={cal} events={ev.visible} onOpen={open} onYear={() => setTab("year")} />}
         {tab === "year" && <YearScreen cal={cal} ev={ev} store={store} onOpen={open} />}
         {tab === "calendar" && <CalendarScreen cal={cal} ev={ev} onOpen={open} />}
         {tab === "media" && <MediaLibrary lib={lib} />}
         {tab === "brand" && <BrandScreen ideas={cal.ideas} lib={lib} />}
       </main>
-      {openSlot && <SlotDrawer slot={openSlot} cal={cal} lib={lib} events={ev.visible} onClose={() => setOpenId(null)} />}
+      {openSlot &&
+        (details ? (
+          <SlotDrawer slot={openSlot} cal={cal} lib={lib} events={ev.visible} onClose={close} onGuided={() => setDetails(false)} />
+        ) : (
+          <PostFlow slot={openSlot} cal={cal} lib={lib} events={ev.visible} onClose={close} onDetails={() => setDetails(true)} />
+        ))}
     </>
   );
 }

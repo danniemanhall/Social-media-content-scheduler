@@ -1,10 +1,32 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { planRange, shuffleSlot, slotFromIdea, ideaBank, COOLDOWN_WEEKS, EXTRA_IDEAS_KEY } from "./planner";
+import { planRange, shuffleSlot, ideaBank, openSlot, replan, COOLDOWN_WEEKS, EXTRA_IDEAS_KEY, PLAN_VERSION, PLAN_VERSION_KEY } from "./planner";
 import { addDays, todayISO, weekStart } from "./dates";
 import type { Store } from "./store";
 import type { ClaudeFields, Format, Idea, Slot } from "./types";
 
 const GENERATED_KEY = "generatedWeeks";
+
+let migrating: Promise<void> | null = null;
+
+/**
+ * Once per plan version: weeks planned with the old template (topics already
+ * filled in) become open slots, keeping anything someone has worked on.
+ */
+function migratePlan(store: Store): Promise<void> {
+  migrating ??= (async () => {
+    if (((await store.getSetting<number>(PLAN_VERSION_KEY)) ?? 1) >= PLAN_VERSION) return;
+    const today = todayISO();
+    const existing = await store.load(today, addDays(today, 400));
+    const { remove, add } = replan(existing, today);
+    for (const id of remove) await store.remove(id);
+    await store.save(add);
+    await store.setSetting(PLAN_VERSION_KEY, PLAN_VERSION);
+  })().catch((e) => {
+    migrating = null;
+    throw e;
+  });
+  return migrating;
+}
 
 /**
  * Calendar state: loads slots for the weeks on screen, plans any upcoming
@@ -23,6 +45,7 @@ export function useCalendar(store: Store) {
       setLoading(true);
       setError(null);
       try {
+        await migratePlan(store);
         const histFrom = addDays(weekStart(from), -7 * COOLDOWN_WEEKS);
         const existing = await store.load(histFrom, to);
         const generated = new Set((await store.getSetting<string[]>(GENERATED_KEY)) ?? []);
@@ -79,15 +102,12 @@ export function useCalendar(store: Store) {
 
   const add = useCallback(
     async (date: string, format: Format) => {
-      const taken = new Set(all.filter((s) => s.date.slice(0, 7) === date.slice(0, 7)).map((s) => s.ideaId));
-      const options = ideas.filter((i) => i.format === format);
-      const choice = options.find((i) => !taken.has(i.id)) ?? options[0];
-      const time = format === "story" ? "08:00" : "18:30";
-      const slot = slotFromIdea(choice, date, time, `${date}-${format}-${crypto.randomUUID().slice(0, 8)}`);
+      const time = format === "story" ? "10:00" : "12:30";
+      const slot = openSlot(date, time, format, `${date}-${format}-${crypto.randomUUID().slice(0, 8)}`);
       await update(slot);
       return slot;
     },
-    [all, ideas, update],
+    [update],
   );
 
   const move = useCallback(

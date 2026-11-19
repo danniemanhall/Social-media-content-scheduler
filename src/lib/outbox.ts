@@ -35,17 +35,21 @@ export function filesFor(slot: Slot): { media?: MediaRef; driveId?: string; type
     return v ? [{ media: v, type: "video" }] : [];
   }
   if (slot.format === "carousel") return media.slice(0, 10).map((m) => ({ media: m, type: type(m) }));
-  if (slot.format === "story") return media[0] ? [{ media: media[0], type: type(media[0]) }] : [];
-  const photo = media.find(isImage);
-  return photo ? [{ media: photo, type: "image" }] : [];
+  // Each photo or clip is one story frame; they go up one after another.
+  if (slot.format === "story") return media.slice(0, 20).map((m) => ({ media: m, type: type(m) }));
+  const first = media.find(isImage) ?? media.find(isVideo);
+  return first ? [{ media: first, type: type(first) }] : [];
 }
 
-/** Instagram feed photos must be between 4:5 (portrait) and 1.91:1 (landscape). */
+/**
+ * Crops a photo, centred, to the post's size: 9:16 for stories, 4:5 portrait
+ * for grid posts and carousels (Instagram's default 1080 × 1350), so every
+ * photo fills the frame the same way.
+ */
 export function cropBox(w: number, h: number, story: boolean) {
-  const [min, max] = story ? [9 / 16, 9 / 16] : [4 / 5, 1.91];
+  const target = story ? 9 / 16 : 4 / 5;
   const r = w / h;
-  if (!story && r >= min && r <= max) return { x: 0, y: 0, w, h };
-  const target = r < min ? min : r > max ? max : r;
+  if (Math.abs(r - target) / target < 0.01) return { x: 0, y: 0, w, h };
   if (r > target) {
     const cw = Math.round(h * target);
     return { x: Math.round((w - cw) / 2), y: 0, w: cw, h };

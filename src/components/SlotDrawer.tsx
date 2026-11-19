@@ -18,9 +18,24 @@ import { EventBrief } from "./EventBrief";
 import type { BrandEvent } from "../lib/events";
 
 const CAPTION_LIMIT = 2200;
-const HASHTAG_LIMIT = 30;
+const HASHTAG_LIMIT = 5; // Instagram's limit since December 2025
 
-export function SlotDrawer({ slot, cal, lib, events, onClose }: { slot: Slot; cal: Calendar; lib: MediaLibraryState; events?: BrandEvent[]; onClose: () => void }) {
+export function SlotDrawer({
+  slot,
+  cal,
+  lib,
+  events,
+  onClose,
+  onGuided,
+}: {
+  slot: Slot;
+  cal: Calendar;
+  lib: MediaLibraryState;
+  events?: BrandEvent[];
+  onClose: () => void;
+  /** Switch to the step-by-step flow. */
+  onGuided?: () => void;
+}) {
   const [draft, setDraft] = useState<Slot>(slot);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -109,6 +124,11 @@ export function SlotDrawer({ slot, cal, lib, events, onClose }: { slot: Slot; ca
               {draft.product && <span className="chip">{draft.product}</span>}
             </div>
           </div>
+          {onGuided && (
+            <button className="btn small ghost" type="button" onClick={onGuided}>
+              Step by step
+            </button>
+          )}
           <button className="btn ghost" onClick={onClose} aria-label="Close">✕</button>
         </header>
 

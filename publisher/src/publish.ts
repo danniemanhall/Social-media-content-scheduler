@@ -32,8 +32,11 @@ export function dueAt(slot: Pick<Slot, "date" | "time">): number {
   return Date.parse(`${slot.date}T${slot.time || "12:00"}:00+02:00`);
 }
 
+/** Instagram takes at most 5 hashtags a post (since December 2025); more can get the post refused. */
+export const MAX_HASHTAGS = 5;
+
 export function captionOf(slot: Pick<Slot, "caption" | "cta" | "hashtags">) {
-  return [slot.caption, slot.cta, slot.hashtags.join(" ")].filter((s) => s && s.trim()).join("\n\n");
+  return [slot.caption, slot.cta, slot.hashtags.slice(0, MAX_HASHTAGS).join(" ")].filter((s) => s && s.trim()).join("\n\n");
 }
 
 class GraphError extends Error {}
@@ -63,11 +66,31 @@ export async function processSlot(slot: Slot, cfg: MetaConfig, fetcher: Fetch): 
     if (!files.length) throw new GraphError("No files were handed over for this post.");
 
     // ── Instagram ──
+    const ig = cfg.igUserId;
+    const one = (f: (typeof files)[number], extra: Record<string, string | undefined>) =>
+      call(`${ig}/media`, f.type === "video" ? { video_url: f.url, ...extra } : { image_url: f.url, ...extra });
+
+    // A story with several frames: each frame is its own story, posted in order.
+    // Progress is kept per frame, so a retry carries on where it stopped.
+    if (!pub.ig!.mediaId && slot.format === "story" && files.length > 1) {
+      const frames = (pub.ig!.frames = files.map((_, i) => ({ ...pub.ig!.frames?.[i] })));
+      for (const [i, f] of files.entries()) {
+        const fr = frames[i];
+        if (fr.mediaId) continue;
+        if (!fr.containerId) fr.containerId = String((await one(f, { media_type: "STORIES" })).id);
+        const st = await call(fr.containerId, { fields: "status_code,status" }, "GET");
+        if (st.status_code === "ERROR" || st.status_code === "EXPIRED") {
+          fr.containerId = undefined;
+          throw new GraphError(`Instagram couldn't process story frame ${i + 1} (${String(st.status ?? st.status_code)}).`);
+        }
+        if (st.status_code && st.status_code !== "FINISHED" && st.status_code !== "PUBLISHED") return { kind: "waiting", publish: pub };
+        fr.mediaId = String((await call(`${ig}/media_publish`, { creation_id: fr.containerId })).id);
+      }
+      pub.ig!.mediaId = frames.at(-1)!.mediaId;
+    }
+
     if (!pub.ig!.mediaId) {
       if (!pub.ig!.containerId) {
-        const ig = cfg.igUserId;
-        const one = (f: (typeof files)[number], extra: Record<string, string | undefined>) =>
-          call(`${ig}/media`, f.type === "video" ? { video_url: f.url, ...extra } : { image_url: f.url, ...extra });
         let created: Record<string, unknown>;
         if (slot.format === "carousel" && files.length > 1) {
           const children: string[] = [];
@@ -94,7 +117,7 @@ export async function processSlot(slot: Slot, cfg: MetaConfig, fetcher: Fetch): 
       if (status.status_code && status.status_code !== "FINISHED" && status.status_code !== "PUBLISHED") {
         return { kind: "waiting", publish: pub };
       }
-      const published = await call(`${cfg.igUserId}/media_publish`, { creation_id: pub.ig!.containerId });
+      const published = await call(`${ig}/media_publish`, { creation_id: pub.ig!.containerId });
       pub.ig!.mediaId = String(published.id);
       try {
         const info = await call(pub.ig!.mediaId, { fields: "permalink" }, "GET");
@@ -136,4 +159,37 @@ export async function processSlot(slot: Slot, cfg: MetaConfig, fetcher: Fetch): 
     pub.error = message;
     return { kind: "failed", publish: pub, message };
   }
+}
+
+export type Stats = NonNullable<Publish["stats"]>;
+
+/**
+ * Reads a post's reach and interactions from Instagram, for choosing the best
+ * times to post. Needs the token to have instagram_manage_insights; without
+ * it this returns null and the app keeps using published research.
+ */
+export async function readStats(mediaId: string, format: Slot["format"], cfg: MetaConfig, fetcher: Fetch, now = new Date()): Promise<Stats | null> {
+  const metrics = format === "story" ? "reach,total_interactions" : "reach,total_interactions,saved,shares";
+  const url = `${cfg.graph ?? GRAPH}/${mediaId}/insights?metric=${metrics}&access_token=${encodeURIComponent(cfg.token)}`;
+  const res = await fetcher(url, { method: "GET" });
+  if (!res.ok) return null;
+  const body = (await res.json().catch(() => ({}))) as { data?: { name: string; values?: { value: number }[]; total_value?: { value: number } }[] };
+  const get = (n: string) => {
+    const m = body.data?.find((d) => d.name === n);
+    return m ? (m.total_value?.value ?? m.values?.[0]?.value) : undefined;
+  };
+  const reach = get("reach");
+  if (reach === undefined) return null;
+  return { reach, interactions: get("total_interactions"), saves: get("saved"), shares: get("shares"), at: now.toISOString() };
+}
+
+/** Whether to (re)read a posted slot's numbers now: daily for 2 weeks; stories only in their first day, while Instagram keeps them. */
+export function wantsStats(slot: Slot, now = Date.now()): boolean {
+  const pub = slot.publish;
+  if (slot.status !== "posted" || !pub?.ig?.mediaId || !pub.postedAt) return false;
+  const age = now - Date.parse(pub.postedAt);
+  if (age > 14 * 86_400_000) return false;
+  if (slot.format === "story" && age > 23 * 3600_000) return false;
+  const last = pub.stats ? now - Date.parse(pub.stats.at) : Infinity;
+  return slot.format === "story" ? last > 3 * 3600_000 : last > 20 * 3600_000;
 }

@@ -389,3 +389,132 @@ a.btn { text-decoration: none; }
   nav.tabs { max-width: 100%; overflow-x: auto; }
   nav.tabs button { white-space: nowrap; }
 }
+
+/* ── Open slots on the calendar ── */
+.tile.open { background: transparent; border-style: dashed; border-left-style: solid; }
+.tile.open .title { color: var(--muted); font-weight: 500; }
+.tile .status.open { color: var(--caramel); background: none; padding: 0; }
+.tile .hand { font-size: 11px; color: var(--caramel); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Guided post flow ── */
+.drawer.flow > header, .flow-steps, .flow-body, .flow-back { max-width: 1100px; margin-left: auto; margin-right: auto; width: 100%; }
+.flow-eyebrow { font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+.flow-steps { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 18px; border-bottom: 1px solid var(--line); padding-bottom: 12px; }
+.flow-steps button { border: 0; background: none; color: var(--muted); padding: 4px 8px; border-radius: 999px; font-size: 13px; }
+.flow-steps button span { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--line); font-size: 11px; margin-right: 4px; }
+.flow-steps button.done { color: var(--olive); }
+.flow-steps button.done span { background: var(--olive); color: #fff; border-color: var(--olive); }
+.flow-steps button.on { color: var(--espresso); background: var(--paper); font-weight: 600; }
+.flow-steps button.on span { background: var(--espresso); color: var(--ivory); border-color: var(--espresso); }
+.flow-steps button:disabled { opacity: 0.5; cursor: default; }
+.flow-card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 22px 24px; }
+.flow-card h3 { margin-bottom: 6px; }
+.flow-card .field input[type="text"], .flow-card .field textarea, .flow-card > input[type="text"], .flow-card textarea.big { width: 100%; }
+.flow-card textarea.big { min-height: 140px; margin-top: 10px; }
+.flow-question { text-align: center; padding: 48px 24px; }
+.flow-question h3 { font-size: 26px; margin: 8px 0 22px; }
+.flow-question .flow-nav { justify-content: center; }
+.flow-lead { font-size: 17px; color: var(--muted); margin: 0; }
+.flow-nav { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 18px; }
+.flow-back { margin-top: 12px; }
+.linkish { border: 0; background: none; padding: 0; color: var(--caramel); text-decoration: underline; font-size: 13px; }
+.linkish:disabled { color: var(--muted); text-decoration: none; cursor: default; }
+.idea-ask { display: flex; gap: 8px; margin: 12px 0; }
+.idea-ask input { flex: 1; min-width: 0; }
+.idea-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.idea-card { display: flex; flex-direction: column; gap: 6px; text-align: left; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.idea-card:hover { border-color: var(--caramel); box-shadow: var(--shadow); }
+.idea-card.match { border-color: var(--olive); }
+.idea-card > span:nth-child(2) { font-size: 13px; color: var(--muted); }
+.shots.big li { display: flex; gap: 10px; align-items: center; margin: 6px 0; }
+.shots.big input[type="text"] { flex: 1; }
+.suggest-item.pick { text-align: left; border: 2px solid transparent; background: var(--paper); border-radius: 10px; padding: 6px; display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+.suggest-item.pick.on { border-color: var(--olive); }
+.suggest-item.pick .tick { font-weight: 600; color: var(--olive); }
+.chosen-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; margin-top: 8px; }
+.chosen { font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
+.cropped { position: relative; width: 100%; border-radius: 8px; background: var(--ivory) center/cover no-repeat; display: grid; place-items: center; border: 1px solid var(--line); }
+.row-btns { display: flex; gap: 4px; }
+.broll-preview { width: min(320px, 100%); aspect-ratio: 9 / 16; border-radius: 12px; background: #000; display: block; margin: 10px 0; }
+.music-list { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.track { display: flex; gap: 10px; align-items: center; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; }
+.track.on { border-color: var(--olive); background: var(--paper); }
+.track .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.track-audio { width: 100%; }
+.options { display: grid; gap: 8px; margin-top: 8px; }
+.option { text-align: left; white-space: pre-wrap; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+.option.on { border-color: var(--olive); box-shadow: inset 3px 0 0 var(--olive); }
+.tag-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+.chip.tag { cursor: pointer; }
+.chip.tag.on { background: var(--olive); color: #fff; border-color: var(--olive); }
+.chip.tag:disabled { opacity: 0.45; cursor: default; }
+.flow-preview { display: grid; gap: 24px; }
+@media (min-width: 900px) { .flow-preview { grid-template-columns: 380px minmax(0, 1fr); align-items: start; } }
+.canva-search { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.canva-search input { flex: 1; min-width: 200px; }
+.canva-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.canva-design { display: flex; flex-direction: column; gap: 4px; text-align: left; background: none; border: 1px solid var(--line); border-radius: 10px; padding: 6px; font-size: 13px; }
+.canva-design:hover { border-color: var(--caramel); }
+.canva-thumb { aspect-ratio: 1; display: grid; place-items: center; background: var(--paper); border-radius: 6px; overflow: hidden; color: var(--muted); font-size: 12px; }
+.canva-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.canva-design .name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.canva-confirm { display: grid; gap: 20px; }
+@media (min-width: 700px) { .canva-confirm { grid-template-columns: 280px 1fr; } }
+.canva-confirm img { width: 100%; border-radius: 8px; border: 1px solid var(--line); }
+
+/* ── Instagram preview ── */
+.ig-phone { position: relative; width: min(360px, 100%); margin: 0 auto; background: #000; color: #fff; border-radius: 22px; overflow: hidden; font: 13px/1.35 -apple-system, "Segoe UI", Roboto, sans-serif; user-select: none; }
+.ig-phone.story, .ig-phone.reel { aspect-ratio: 9 / 16; }
+.ig-phone.empty { display: grid; place-items: center; color: #bbb; }
+.ig-phone.feed { background: #fff; color: #111; border: 1px solid var(--line); }
+.ig-media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #222 center/cover no-repeat; display: grid; place-items: center; }
+.ig-phone.feed .ig-media { position: relative; flex: none; aspect-ratio: 4 / 5; height: auto; }
+.ig-missing { color: #aaa; padding: 20px; text-align: center; font-size: 12px; }
+.ig-playing { font-size: 28px; color: rgba(255, 255, 255, 0.85); text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5); }
+.ig-bars { position: absolute; top: 8px; left: 8px; right: 8px; display: flex; gap: 3px; z-index: 3; }
+.ig-bars span { flex: 1; height: 2px; background: rgba(255, 255, 255, 0.35); border-radius: 2px; overflow: hidden; }
+.ig-bars i { display: block; height: 100%; background: #fff; }
+.ig-top { display: flex; align-items: center; gap: 8px; padding: 10px 12px; z-index: 3; }
+.ig-top.light { position: absolute; top: 14px; left: 0; right: 0; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); }
+.ig-av { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; background: #fff; }
+.ig-dim { opacity: 0.7; }
+.ig-song { margin-left: auto; font-size: 11px; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ig-sticker { position: absolute; left: 50%; bottom: 70px; transform: translateX(-50%); background: #fff; color: #111; border-radius: 8px; padding: 6px 12px; font-weight: 600; font-size: 12px; z-index: 3; max-width: 80%; text-align: center; }
+.ig-reply { position: absolute; left: 12px; right: 12px; bottom: 12px; border: 1px solid rgba(255, 255, 255, 0.6); border-radius: 999px; padding: 8px 14px; color: rgba(255, 255, 255, 0.85); z-index: 3; }
+.ig-side { position: absolute; right: 10px; bottom: 110px; display: flex; flex-direction: column; gap: 18px; font-size: 22px; z-index: 3; }
+.ig-reel-foot { position: absolute; left: 12px; right: 56px; bottom: 14px; z-index: 3; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
+.ig-follow { border: 1px solid #fff; border-radius: 6px; padding: 1px 8px; font-size: 12px; }
+.ig-bigplay { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 64px; height: 64px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, 0.45); color: #fff; font-size: 26px; z-index: 3; }
+.ig-audio { font-size: 12px; margin-top: 6px; }
+.ig-caption { white-space: pre-wrap; padding: 4px 12px; cursor: pointer; }
+.ig-reel-foot .ig-caption { padding: 4px 0; }
+.ig-reel-foot .ig-caption.open { max-height: 40vh; overflow: auto; }
+.ig-caption.open { max-height: none; }
+.ig-tags { color: #00376b; }
+.ig-phone:not(.feed) .ig-tags { color: #fff; }
+.ig-more { color: #8e8e8e; }
+.ig-carousel { position: relative; overflow: hidden; touch-action: pan-y; }
+.ig-track { display: flex; transition: transform 0.3s ease; }
+.ig-track > * { width: 100%; flex: 0 0 100%; }
+.ig-count { position: absolute; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.6); color: #fff; border-radius: 999px; padding: 2px 8px; font-size: 11px; }
+.ig-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.85); color: #111; font-size: 18px; line-height: 1; }
+.ig-arrow.left { left: 8px; }
+.ig-arrow.right { right: 8px; }
+.ig-actions { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px 2px; font-size: 18px; }
+.ig-dots { display: flex; gap: 4px; }
+.ig-dots i { width: 6px; height: 6px; border-radius: 50%; background: #c7c7c7; }
+.ig-dots i.on { background: #0095f6; }
+.ig-date { color: #8e8e8e; font-size: 11px; padding: 4px 12px 12px; text-transform: uppercase; }
+
+/* Grid preview: upcoming posts marked so they read as planned, not posted. */
+.ig-cell { position: relative; }
+.ig-cell.upcoming::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 0 2px rgba(161, 122, 94, 0.55); pointer-events: none; }
+.ig-cell.highlight::after { box-shadow: inset 0 0 0 3px var(--olive); }
+.ig-cell-label { background: rgba(255, 255, 255, 0.85); color: var(--espresso); border-radius: 4px; padding: 1px 4px; font-size: 10px; }
+.ig-cell.empty .ig-cell-label { background: none; }
+.flow .hint, .flow-card .hint { font-size: 13px; color: var(--muted); }
+.flow .ok { color: var(--olive); }
+.flow .warnText { color: var(--caramel); }
+.flow .bad { color: var(--danger); }
+.flow-card .btn.ghost { border-color: var(--line); }
+.flow-preview .ig-grid { max-width: 330px; }
