@@ -4,25 +4,27 @@ The post flow's first question is "Do you want to fetch a design from Canva?". S
 
 Until it's done, the app falls back to the old way: paste the design's link and Claude exports it on its next run.
 
-## 1. Create the integration in Canva
+## 1. Create the app in Canva's Developer Portal
 
-Do this **signed in to the Canva account that holds Roopip's approved designs**.
+Canva now calls these "apps" (Connect API integrations were folded into apps). Do this **signed in to the Canva account that holds Roopip's approved designs**.
 
-1. Go to <https://www.canva.com/developers/integrations> and click **Create an integration**.
-2. Choose **Public**, name it "Roopip content calendar" and accept the terms. (It stays unlisted and only you use it. Private integrations need a Canva Enterprise plan.)
-3. Under **Scopes**, tick:
-   - `design:meta` **Read**
-   - `design:content` **Read**
-   - `profile` **Read**
-4. Under **Authentication**, add this redirect URL exactly:
+1. Go to **Your apps** in the Canva Developer Portal (<https://www.canva.com/developers/apps>) and click **Create an app**.
+2. Name it "Roopip calendar" (18 characters at most).
+3. Under **Who can use your app?**, choose **Anyone on Canva (public)**. This can't be changed later. It stays unlisted unless you submit it for review, and you don't need to. "Restricted to your Canva team" needs a Canva Enterprise plan, and "No Canva sign-in required" uses paid API credits, so don't pick either.
+4. Accept the terms and click **Create app**.
+5. Go to **Outside Canva** and click **Start integrating**. On **Outside Canva → Configuration**, check that **Canva REST APIs** is turned on.
+6. Under **Credentials**, copy the **Client ID**. Then click **Generate secret** and copy the **Client secret**. It's only shown once, so keep it somewhere private.
+7. Under **Scopes**, tick:
+   - `design:meta`: **Read**
+   - `design:content`: **Read**
+   - `profile`: **Read**
+8. Go to **Outside Canva → Redirect URLs** and put this in **URL 1**, exactly as written:
 
    ```
    https://roopip-content-calendar.pages.dev/api/canva/callback
    ```
 
-5. Under **Configuration**, copy the **Client ID**, then click **Generate secret** and copy the **Client secret**. Keep the secret private.
-
-You don't need to submit the integration for review. Unreviewed integrations work for the account that created them, which is all the calendar needs.
+9. Leave **Return navigation** off.
 
 ## 2. Give the app the two values
 
@@ -37,7 +39,7 @@ Then redeploy (Deployments → the latest one → Retry deployment), so the app 
 
 ## 3. Connect once
 
-Open any post, click **Yes, choose a design**, then **Connect Canva** and allow access. From then on everyone using the calendar sees Roopip's designs. The connection is kept on the server; **Disconnect** isn't in the app yet, so to cut it off, delete the integration in Canva or remove the secret in Cloudflare.
+Open any post, click **Yes, choose a design**, then **Connect Canva** and allow access. From then on everyone using the calendar sees Roopip's designs. The connection is kept on the server; **Disconnect** isn't in the app yet, so to cut it off, delete the app in Canva or remove the secret in Cloudflare.
 
 ## How it works
 
