@@ -1,6 +1,6 @@
 import { FFmpeg, FFFSType } from "@ffmpeg/ffmpeg";
 import { fetchFile, toBlobURL } from "@ffmpeg/util";
-import { buildJob, isVideo, type JobInput, FONT_BODY, FONT_HEADING, LOGO_FILE } from "./reel";
+import { buildJob, creditFilter, ENCODE, isVideo, type JobInput, FONT_BODY, FONT_HEADING, LOGO_FILE } from "./reel";
 import { downloadFile } from "./drive";
 import { BROLL_MOVES, BROLL_VIDEO_SHOT, brollArgs, joinArgs, type BrollMove } from "./broll";
 import { getFile } from "./localMedia";
@@ -54,6 +54,8 @@ export async function renderReel(
   media: MediaRef[],
   music: Blob | null,
   onProgress: (p: Progress) => void,
+  /** The credit a CC BY track asks for; shown small at the end of the video. */
+  credit?: string,
 ): Promise<{ video: Blob; seconds: number }> {
   onProgress({ value: 0, label: "Loading the video engine (first time takes a moment)…" });
   const ff = await getFFmpeg();
@@ -73,7 +75,7 @@ export async function renderReel(
   await ff.createDir("/in").catch(() => undefined);
   await ff.mount(FFFSType.WORKERFS, { blobs }, "/in");
   try {
-    const job = buildJob(sb, inputs, music ? "/in/music.audio" : undefined);
+    const job = buildJob(sb, inputs, music ? "/in/music.audio" : undefined, credit);
     for (const [name, text] of Object.entries(job.texts)) await ff.writeFile(name, text);
     const logs: string[] = [];
     const onLog = ({ message }: { message: string }) => {
@@ -180,7 +182,7 @@ export async function renderBrollVideo(shots: { photo: MediaRef; move: BrollMove
  * a reel), fading in and out, so Instagram gets one file with sound and the
  * post can go out automatically.
  */
-export async function addMusic(video: MediaRef, track: Blob, onProgress: (p: Progress) => void): Promise<Blob> {
+export async function addMusic(video: MediaRef, track: Blob, onProgress: (p: Progress) => void, credit?: string): Promise<Blob> {
   onProgress({ value: 0, label: "Loading the video engine (first time takes a moment)…" });
   const ff = await getFFmpeg();
   onProgress({ value: 0.2, label: "Fetching the video and the music…" });
@@ -192,10 +194,13 @@ export async function addMusic(video: MediaRef, track: Blob, onProgress: (p: Pro
   await ff.mount(FFFSType.WORKERFS, { blobs }, "/mx");
   try {
     const seconds = video.durationSec ?? 30;
-    onProgress({ value: 0.5, label: "Adding the music…" });
+    onProgress({ value: 0.5, label: credit ? "Adding the music and its credit…" : "Adding the music…" });
+    if (credit) await ff.writeFile("credit.txt", credit);
+    // A credit is drawn onto the picture, so the video is encoded again; otherwise it's copied as it is.
+    const picture = credit ? ["-vf", `${creditFilter("credit.txt", video.durationSec)},format=yuv420p`, ...ENCODE] : ["-c:v", "copy"];
     const code = await ff.exec([
       "-y", "-i", "/mx/v.mp4", "-i", "/mx/music.audio",
-      "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-b:a", "160k",
+      "-map", "0:v", "-map", "1:a", ...picture, "-c:a", "aac", "-b:a", "160k",
       "-af", `afade=t=in:d=0.5,afade=t=out:st=${Math.max(0, seconds - 1.5).toFixed(2)}:d=1.5`,
       "-shortest", "-movflags", "+faststart", "with-music.mp4",
     ]);

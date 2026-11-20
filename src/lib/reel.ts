@@ -97,7 +97,7 @@ const GRADES: Record<Storyboard["grade"], string> = {
   natural: "eq=contrast=1.02:saturation=0.97",
 };
 
-const ENCODE = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p", "-r", String(FPS)];
+export const ENCODE = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p", "-r", String(FPS)];
 
 function fmt(n: number) {
   return n.toFixed(3).replace(/\.?0+$/, "");
@@ -111,6 +111,21 @@ function textFilter(textFile: string, duration: number) {
     `x=(w-text_w)/2:y=h*0.7:shadowcolor=${ESPRESSO}@0.75:shadowx=0:shadowy=4:` +
     `alpha='if(lt(t,${fadeIn}),t/${fadeIn},if(gt(t,${fmt(fadeOut)}),max(0,(${fmt(duration)}-t)/0.4),1))'`
   );
+}
+
+/**
+ * The music credit a CC BY track asks for: small, light text at the top left,
+ * below the area Instagram covers with its own labels, for the last 2 seconds.
+ */
+export const CREDIT_SECONDS = 2;
+export function creditFilter(textFile: string, seconds: number | undefined, color = IVORY) {
+  // On footage: a soft espresso label so it reads on light photos. On the ivory end card: plain caramel text.
+  const backing = color === IVORY ? `box=1:boxcolor=${ESPRESSO}@0.38:boxborderw=16:` : "";
+  const style = `drawtext=fontfile=${FONT_BODY}:textfile=${textFile}:expansion=none:fontcolor=${color}:fontsize=28:x=w*0.06:y=h*0.15:${backing}`;
+  // Length unknown: show it for the first 3 seconds instead.
+  if (!seconds) return `${style}enable='lt(t,3)':alpha='min(1,t/0.3,(3-t)/0.3)*0.95'`;
+  const from = Math.max(0, seconds - CREDIT_SECONDS);
+  return `${style}enable='gte(t,${fmt(from)})':alpha='min(1,(t-${fmt(from)})/0.3)*0.95'`;
 }
 
 /** Wrap on-screen text to about 18 characters a line so it stays inside the frame. */
@@ -127,7 +142,7 @@ export function wrapText(text: string, width = 18) {
   return lines.slice(0, 3).join("\n");
 }
 
-export function buildJob(sb: Storyboard, inputs: Record<string, JobInput>, music?: string): RenderJob {
+export function buildJob(sb: Storyboard, inputs: Record<string, JobInput>, music?: string, credit?: string): RenderJob {
   const texts: Record<string, string> = {};
   const steps: string[][] = [];
   const parts: string[] = [];
@@ -175,6 +190,8 @@ export function buildJob(sb: Storyboard, inputs: Record<string, JobInput>, music
       `[1:v]scale=760:-1,format=rgba[logo]`,
       `[0:v][logo]overlay=(W-w)/2:(H-h)/2-90:shortest=1,` +
         `drawtext=fontfile=${FONT_BODY}:textfile=endsub.txt:fontcolor=${CARAMEL}:fontsize=44:x=(w-text_w)/2:y=h/2+70,` +
+        // The music credit sits on the end card, small and caramel, when there is one.
+        (music && credit ? `${creditFilter("credit.txt", d, CARAMEL)},` : "") +
         `fade=t=in:st=0:d=0.5,fade=t=out:st=${fmt(d - 0.6)}:d=0.6,format=yuv420p[v]`,
     ].join(";");
     steps.push([
@@ -190,9 +207,12 @@ export function buildJob(sb: Storyboard, inputs: Record<string, JobInput>, music
 
   const seconds = totalSeconds({ ...sb, shots });
   if (music) {
+    if (credit) texts["credit.txt"] = credit;
+    // Without an end card, the credit goes over the last shot, so the video is encoded again.
+    const video = credit && !sb.endCard ? ["-vf", `${creditFilter("credit.txt", seconds)},format=yuv420p`, ...ENCODE] : ["-c:v", "copy"];
     steps.push([
       "-y", "-i", "joined.mp4", "-i", music,
-      "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-b:a", "160k",
+      "-map", "0:v", "-map", "1:a", ...video, "-c:a", "aac", "-b:a", "160k",
       "-af", `afade=t=in:d=0.5,afade=t=out:st=${fmt(Math.max(0, seconds - 1.5))}:d=1.5`,
       "-t", fmt(seconds), "-movflags", "+faststart", "reel.mp4",
     ]);

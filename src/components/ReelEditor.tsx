@@ -50,11 +50,13 @@ export function ReelEditor({ slot, save }: { slot: Slot; save: (patch: Partial<S
     try {
       const { renderReel } = await import("../lib/render");
       let track: Blob | null = wantsMusic ? music : null;
+      let credit: string | undefined;
       if (wantsMusic && !track && slot.song?.source === "library" && slot.song.driveId) {
         const { downloadFile } = await import("../lib/drive");
         track = await downloadFile(slot.song.driveId);
+        credit = slot.song.credit;
       }
-      const out = await renderReel(sb, media, track, setProgress);
+      const out = await renderReel(sb, media, track, setProgress, credit);
       setResult({ url: URL.createObjectURL(out.video), blob: out.video, seconds: out.seconds });
       if (slot.status === "idea" || slot.status === "media") save({ status: "editing" });
     } catch (e) {
