@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { planRange, shuffleSlot, ideaBank, openSlot, replan, COOLDOWN_WEEKS, EXTRA_IDEAS_KEY, PLAN_VERSION, PLAN_VERSION_KEY } from "./planner";
+import { planRange, shuffleSlot, ideaBank, isOpen, openSlot, replan, rhythmPillar, COOLDOWN_WEEKS, EXTRA_IDEAS_KEY, PLAN_VERSION, PLAN_VERSION_KEY } from "./planner";
 import { addDays, todayISO, weekStart } from "./dates";
 import type { Store } from "./store";
 import type { ClaudeFields, Format, Idea, Slot } from "./types";
@@ -19,7 +19,12 @@ function migratePlan(store: Store): Promise<void> {
     const existing = await store.load(today, addDays(today, 400));
     const { remove, add } = replan(existing, today);
     for (const id of remove) await store.remove(id);
-    await store.save(add);
+    // Open slots take their pillar from the playbook's rhythm (plan version 3).
+    const gone = new Set(remove);
+    const repillared = existing
+      .filter((s) => !gone.has(s.id) && isOpen(s) && s.pillar !== rhythmPillar(s.date, s.format))
+      .map((s) => ({ ...s, pillar: rhythmPillar(s.date, s.format) }));
+    await store.save([...add, ...repillared]);
     await store.setSetting(PLAN_VERSION_KEY, PLAN_VERSION);
   })().catch((e) => {
     migrating = null;

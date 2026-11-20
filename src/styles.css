@@ -526,3 +526,10 @@ a.btn { text-decoration: none; }
 .track .dim { color: var(--muted, #8a7f74); font-size: 13px; white-space: nowrap; }
 .track .name .dim { font-size: inherit; }
 @media (max-width: 560px) { .track { flex-wrap: wrap; } .track .name { flex-basis: calc(100% - 50px); } }
+
+/* The slot's pillar or campaign, in the idea step and on open tiles */
+.rhythm { margin: 6px 0 12px; padding: 8px 12px; border-left: 3px solid var(--olive); background: var(--paper); border-radius: 0 8px 8px 0; font-size: 14px; }
+.rhythm.campaign { border-left-color: var(--caramel); }
+.tile .pillar { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+.shot-group { margin: 6px 0 14px; }
+.shot-group h4 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }

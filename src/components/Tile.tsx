@@ -39,6 +39,7 @@ export function Tile({ slot, onOpen, draggable }: { slot: Slot; onOpen: (s: Slot
         ) : (
           <span className="status open">Click to start</span>
         )}
+        {!slot.ideaId && <span className="pillar" title="This slot's pillar, from the playbook's weekly rhythm">{slot.pillar}</span>}
         {slot.music === "instagram" && slot.song && slot.status !== "posted" && <span className="hand" title="Posted by hand with this Instagram song">♫ {slot.song.title}</span>}
       </span>
     </button>
