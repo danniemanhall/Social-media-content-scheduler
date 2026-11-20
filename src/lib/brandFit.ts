@@ -325,6 +325,11 @@ function topScene(hits: Record<Scene, number>): Scene | null {
   return best;
 }
 
+/** What kind of photo a piece of text (e.g. one line of a shot list) points to, if it says. */
+export function sceneForText(text: string): Scene | null {
+  return topScene(sceneHits(text));
+}
+
 /**
  * What kind of photo the post's idea asks for: read from the title, the idea
  * and the shot list first, and the pillar only when those don't say.
