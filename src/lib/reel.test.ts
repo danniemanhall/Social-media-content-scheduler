@@ -85,3 +85,28 @@ describe.runIf(hasFfmpeg)("buildJob with real ffmpeg", () => {
     expect(Math.abs(Number(probe.format.duration) - job.seconds)).toBeLessThan(0.5);
   }, 120_000);
 });
+
+describe("music credit", () => {
+  const sb = (endCard: boolean) => ({ shots: [{ mediaId: "a", start: 0, duration: 3, speed: 1 }], grade: "warm", endCard }) as never;
+  const inputs = { a: { file: "a.mp4", kind: "video" as const } };
+
+  it("draws the credit over the last shot when there's no end card", () => {
+    const job = buildJob(sb(false), inputs, "music.mp3", 'Music: "Lucky" by Jesse (CC BY 3.0)');
+    expect(job.texts["credit.txt"]).toBe('Music: "Lucky" by Jesse (CC BY 3.0)');
+    const last = job.steps.at(-1)!.join(" ");
+    expect(last).toContain("textfile=credit.txt");
+    expect(last).not.toContain("-c:v copy");
+  });
+
+  it("puts the credit on the end card and copies the video otherwise", () => {
+    const job = buildJob(sb(true), inputs, "music.mp3", "Music: x");
+    expect(job.steps.find((s) => s.includes("end.mp4"))!.join(" ")).toContain("textfile=credit.txt");
+    expect(job.steps.at(-1)!.join(" ")).toContain("-c:v copy");
+  });
+
+  it("adds nothing without a credit", () => {
+    const job = buildJob(sb(false), inputs, "music.mp3");
+    expect(job.texts["credit.txt"]).toBeUndefined();
+    expect(job.steps.at(-1)!.join(" ")).toContain("-c:v copy");
+  });
+});

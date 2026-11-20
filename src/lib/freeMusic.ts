@@ -4,7 +4,7 @@
  * Searches Openverse (api.openverse.org, run by WordPress, no key needed) for
  * Jamendo tracks under CC0 or CC BY. Both licences allow commercial use and
  * changes, so a track can go into a Roopip reel. CC BY asks for a credit, which
- * the caption gets automatically (see `creditOf`). Share-alike and
+ * is drawn small on the video when the music is added (see `creditOf`). Share-alike and
  * non-commercial tracks are never shown.
  *
  * The browser calls Openverse directly, so the limit (about 20 searches a
@@ -89,7 +89,7 @@ export function creditOf(t: Pick<FreeTrack, "title" | "creator" | "license" | "l
   return `Music: "${t.title}" by ${t.creator} (CC BY${t.licenseVersion ? ` ${t.licenseVersion}` : ""})`;
 }
 
-export const licenseLabel = (t: Pick<FreeTrack, "license" | "licenseVersion">) => (t.license === "cc0" ? "CC0, no credit needed" : `CC BY ${t.licenseVersion}, credited in the caption`.replace("  ", " "));
+export const licenseLabel = (t: Pick<FreeTrack, "license" | "licenseVersion">) => (t.license === "cc0" ? "CC0, no credit needed" : `CC BY ${t.licenseVersion}, credited on the video`.replace("  ", " "));
 
 /** "Title - Artist (CC BY 3.0).mp3": the licence stays in the name, so the credit comes back when the track is reused from Drive. */
 export const fileNameOf = (t: Pick<FreeTrack, "title" | "creator" | "license" | "licenseVersion">) =>

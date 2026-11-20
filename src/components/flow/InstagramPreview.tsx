@@ -39,8 +39,7 @@ function Frame({ media, play, onEnded, muted = true }: { media: MediaRef; play: 
 function Caption({ slot, full }: { slot: Slot; full?: boolean }) {
   const [open, setOpen] = useState(!!full);
   const tags = slot.hashtags.slice(0, HASHTAG_LIMIT).join(" ");
-  const credit = slot.song?.source === "library" ? slot.song.credit : undefined;
-  const text = [slot.caption, slot.cta, credit].filter(Boolean).join("\n\n");
+  const text = [slot.caption, slot.cta].filter(Boolean).join("\n\n");
   const short = text.split("\n")[0].slice(0, 80);
   if (!open && (short.length < text.length || tags)) {
     return (

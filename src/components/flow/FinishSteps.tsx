@@ -94,7 +94,7 @@ export function MusicStep({ slot, save, next }: StepProps) {
       const { addMusic } = await import("../../lib/render");
       const { downloadFile, saveToAppFolder, BROLL_FOLDER } = await import("../../lib/drive");
       const track = await downloadFile(slot.song.driveId);
-      const out = await addMusic(video, track, setProgress);
+      const out = await addMusic(video, track, setProgress, slot.song.credit);
       setProgress({ value: 1, label: "Saving to Drive…" });
       const name = `${slot.date} ${slot.title.slice(0, 40)} with music.mp4`.replace(/[\\/:*?"<>|]/g, "-");
       const { isFolder: _f, ...ref } = await saveToAppFolder(BROLL_FOLDER, name, out, "video/mp4");
@@ -129,7 +129,7 @@ export function MusicStep({ slot, save, next }: StepProps) {
 
       <div className="free-music">
         <h4>Free music to choose from</h4>
-        <p className="hint">Instrumental tracks from Jamendo that may be used commercially (CC0 or CC BY). Press ▶ to listen. "Use this" saves the track to the "Roopip music" folder in Drive. Where the licence asks for a credit, the app adds it to the caption.</p>
+        <p className="hint">Instrumental tracks from Jamendo that may be used commercially (CC0 or CC BY). Press ▶ to listen. "Use this" saves the track to the "Roopip music" folder in Drive. Where the licence asks for a credit, the app puts a small one in the corner of the video for the last 2 seconds.</p>
         <div className="chips">
           {moods.map((m) => (
             <button key={m.label} type="button" className={`chip tag ${free?.query === m.free ? "on" : ""}`} onClick={() => searchFree(m.free)}>
@@ -169,7 +169,7 @@ export function MusicStep({ slot, save, next }: StepProps) {
           )}
           {freeError && <div className="bad">{freeError}</div>}
         </div>
-        {slot.song?.credit && <p className="hint">Caption credit: {slot.song.credit}</p>}
+        {slot.song?.credit && <p className="hint">Credit on the video: {slot.song.credit}</p>}
       </div>
 
       <h4>Your music folder</h4>

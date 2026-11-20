@@ -125,7 +125,7 @@ export interface Song {
    *  instagram: a song saved on Instagram; the app reminds whoever posts it by hand to add it. */
   source: "library" | "instagram";
   driveId?: string;
-  /** The credit its licence asks for (CC BY), added to the caption. */
+  /** The credit its licence asks for (CC BY), drawn small on the video when the music is added. */
   credit?: string;
   /** Where the track came from, e.g. its Jamendo page. */
   link?: string;

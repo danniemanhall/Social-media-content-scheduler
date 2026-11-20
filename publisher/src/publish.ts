@@ -35,10 +35,8 @@ export function dueAt(slot: Pick<Slot, "date" | "time">): number {
 /** Instagram takes at most 5 hashtags a post (since December 2025); more can get the post refused. */
 export const MAX_HASHTAGS = 5;
 
-/** Caption, call to action, the music credit a CC BY track asks for, then up to 5 hashtags. */
-export function captionOf(slot: Pick<Slot, "caption" | "cta" | "hashtags"> & Partial<Pick<Slot, "song">>) {
-  const credit = slot.song?.source === "library" ? slot.song.credit : undefined;
-  return [slot.caption, slot.cta, credit, slot.hashtags.slice(0, MAX_HASHTAGS).join(" ")].filter((s) => s && s.trim()).join("\n\n");
+export function captionOf(slot: Pick<Slot, "caption" | "cta" | "hashtags">) {
+  return [slot.caption, slot.cta, slot.hashtags.slice(0, MAX_HASHTAGS).join(" ")].filter((s) => s && s.trim()).join("\n\n");
 }
 
 class GraphError extends Error {}
