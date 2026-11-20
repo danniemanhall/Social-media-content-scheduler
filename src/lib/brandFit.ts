@@ -518,3 +518,37 @@ export function pickBrollPhotos(
     .filter((s) => s.scene && allowed.has(s.scene))
     .slice(0, count);
 }
+
+export interface ShotSuggestions {
+  shot: string;
+  items: Suggestion[];
+}
+
+/**
+ * Media for each ticked shot on its own, so every shot gets photos that show
+ * that shot (a close-up of the stitching, a wide shot of the workshop...),
+ * instead of one list matched to all the shots' words at once. Each shot is
+ * matched on its own words and kind of shot, with the idea's product and
+ * pillar still counting. A file goes to the shot it fits best.
+ */
+export function suggestForShots(
+  slot: Pick<Slot, "id" | "format" | "pillar" | "product" | "title" | "media"> & Partial<Pick<Slot, "prompt">>,
+  shots: string[],
+  library: IndexedMedia[],
+  looks: Record<string, Look | undefined>,
+  lastUsed: Record<string, string | undefined>,
+  today: string,
+  tags: Record<string, MediaTags | undefined> = {},
+  perShot = 24,
+): ShotSuggestions[] {
+  const lists = shots.map((shot) => suggestMedia({ ...slot, title: shot, prompt: "", shots: [shot], media: slot.media }, library, looks, lastUsed, today, perShot * 2, tags));
+  // Each file belongs to the shot where it scores highest.
+  const best = new Map<string, { shot: number; score: number }>();
+  lists.forEach((list, i) => {
+    for (const s of list) {
+      const b = best.get(s.media.id);
+      if (!b || s.score > b.score) best.set(s.media.id, { shot: i, score: s.score });
+    }
+  });
+  return shots.map((shot, i) => ({ shot, items: lists[i].filter((s) => best.get(s.media.id)?.shot === i).slice(0, perShot) }));
+}

@@ -1,8 +1,8 @@
 import { IDEAS } from "./ideas";
-import { DOC_IDEAS } from "./playbook";
+import { DOC_IDEAS, weekTheme } from "./playbook";
 import { PILLARS } from "./brand";
 import { addDays, monthOf, toUTC, weekStart } from "./dates";
-import type { Format, Idea, Slot, TemplateSlot } from "./types";
+import type { Format, Idea, Pillar, Slot, TemplateSlot } from "./types";
 
 /**
  * Default week (Daniel, 19 Nov 2026): 3 stories, 1 reel and 1 grid post, with
@@ -19,8 +19,8 @@ export const DEFAULT_TEMPLATE: TemplateSlot[] = [
   { dow: 6, kind: "story", time: "09:30" },
 ];
 
-/** Version of the weekly plan. Bumped when the template changes so planned weeks are redone once. */
-export const PLAN_VERSION = 2;
+/** Version of the weekly plan. Bumped when the template or the rhythm changes so planned weeks are redone once. */
+export const PLAN_VERSION = 3;
 export const PLAN_VERSION_KEY = "planVersion";
 
 export const COOLDOWN_WEEKS = 8;
@@ -114,6 +114,26 @@ export function pickIdea(candidates: Idea[], ctx: PickContext): Idea {
   return best ?? pool[0] ?? candidates[0];
 }
 
+/**
+ * The pillar a slot carries, from the Drive playbook's four-week rhythm
+ * (playbook.ts, weekTheme). Each week's theme has three pillars, its lead
+ * pillar first. The reel and the grid post take the first two (swapping each
+ * week, so both get the lead pillar over a month) and the three stories take
+ * one each, so a week shows its lead pillars twice and the third once, and
+ * the grid and stories both move through every theme.
+ */
+export function rhythmPillar(date: string, format: Format, template: TemplateSlot[] = DEFAULT_TEMPLATE): Pillar {
+  const [a, b, c] = weekTheme(date).pillars;
+  const swap = Math.floor(toUTC(weekStart(date)) / (7 * 86_400_000)) % 2 === 1;
+  const [first, second] = swap ? [b, a] : [a, b];
+  if (format === "reel") return first;
+  if (format === "post" || format === "carousel") return second;
+  const dow = ((new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7) + 1;
+  const storyDays = template.filter((t) => t.kind === "story").map((t) => t.dow).sort();
+  const i = storyDays.includes(dow) ? storyDays.indexOf(dow) : storyDays.filter((d) => d < dow).length;
+  return [c, second, first][i % 3];
+}
+
 /** A slot with no idea yet: the calendar shows it as "Story needed" until someone picks one. */
 export function openSlot(date: string, time: string, format: Format, id: string): Slot {
   return {
@@ -122,7 +142,7 @@ export function openSlot(date: string, time: string, format: Format, id: string)
     time,
     format,
     ideaId: "",
-    pillar: "Lifestyle",
+    pillar: rhythmPillar(date, format),
     title: "",
     prompt: "",
     shots: [],

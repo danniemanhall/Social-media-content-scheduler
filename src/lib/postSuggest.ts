@@ -98,7 +98,8 @@ export function applyIdea(slot: Slot, idea: Idea): Slot {
   return {
     ...slot,
     ideaId: idea.id,
-    format: slot.format === "post" || slot.format === "carousel" ? idea.format : slot.format,
+    // A grid slot takes the idea's grid layout; an idea written for a story or reel becomes a single post.
+    format: slot.format === "post" || slot.format === "carousel" ? (idea.format === "carousel" ? "carousel" : "post") : slot.format,
     pillar: idea.pillar,
     product: idea.product,
     title: idea.title,

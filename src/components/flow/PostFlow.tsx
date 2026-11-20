@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FORMAT_LABEL } from "../../lib/brand";
 import { dayName, shortDate } from "../../lib/dates";
-import { isOpen } from "../../lib/planner";
+import { isOpen, rhythmPillar } from "../../lib/planner";
 import { applyIdea, formatsFor, rankIdeas } from "../../lib/postSuggest";
-import { suggestIdeas } from "../../lib/suggest";
-import { addDays } from "../../lib/dates";
-import type { BrandEvent } from "../../lib/events";
+import { campaignSlots, suggestIdeas } from "../../lib/suggest";
+import { addDays, weekStart } from "../../lib/dates";
+import { PHASE_LABEL, type BrandEvent } from "../../lib/events";
 import type { MediaLibraryState } from "../../lib/mediaIndex";
 import type { Calendar } from "../../lib/useCalendar";
 import type { FlowStep, Idea, Slot } from "../../lib/types";
@@ -210,12 +210,22 @@ function IdeaStep({ slot, cal, events, save, next }: StepProps) {
     () => cal.slots.filter((s) => s.id !== slot.id && s.ideaId && s.date >= addDays(slot.date, -56) && s.date <= addDays(slot.date, 56)).map((s) => s.ideaId),
     [cal.slots, slot.id, slot.date],
   );
+  // The slot's pillar comes from the playbook's weekly rhythm; a few slots a week carry a campaign instead.
+  const pillar = rhythmPillar(slot.date, slot.format);
+  const week = useMemo(() => {
+    const w = weekStart(slot.date);
+    const inWeek = [...cal.slots.filter((s) => s.id !== slot.id && weekStart(s.date) === w), slot];
+    const plan = campaignSlots(inWeek, events);
+    return { plan, inWeek };
+  }, [cal.slots, slot.id, slot.date, slot.format, events]); // eslint-disable-line react-hooks/exhaustive-deps
+  const campaign = week.plan.get(slot.id) ?? null;
+  const otherCampaigns = [...week.plan.entries()].filter(([id]) => id !== slot.id).map(([id, m]) => ({ s: week.inWeek.find((x) => x.id === id)!, m }));
   const run = (shown: string[]) =>
-    suggestIdeas({ date: slot.date, formats: formatsFor(slot.format), bank: cal.ideas, events, count: PAGE, exclude: [...recent, ...shown], seed: slot.id });
+    suggestIdeas({ date: slot.date, formats: formatsFor(slot.format), bank: cal.ideas, events, count: PAGE, exclude: [...recent, ...shown], seed: slot.id, pillar, campaign });
   const out = useMemo(() => {
     const r = run(seen);
     return r.ideas.length ? r : run([]);
-  }, [slot.date, slot.format, cal.ideas, events, recent, seen]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [slot.date, slot.format, cal.ideas, events, recent, seen, pillar, campaign]); // eslint-disable-line react-hooks/exhaustive-deps
   const matches = useMemo(() => (asked ? rankIdeas(slot, cal.ideas, cal.slots, asked).filter((r) => r.matched).slice(0, PAGE) : []), [asked, cal.ideas]); // eslint-disable-line react-hooks/exhaustive-deps
   const list: { idea: Idea; reason: string; matched?: boolean }[] = [
     ...matches.map((m) => ({ idea: m.idea, reason: `About "${asked}"`, matched: true })),
@@ -264,6 +274,22 @@ function IdeaStep({ slot, cal, events, save, next }: StepProps) {
       <p className="hint">
         <b>This week: {out.theme.name}.</b> {out.theme.focus}
       </p>
+      {campaign ? (
+        <p className="rhythm campaign">
+          This {kindLabel(slot)} carries <b>{campaign.event.title}</b> ({PHASE_LABEL[campaign.phase].toLowerCase()}), so its campaign ideas come first.
+          The other posts this week keep the pillar rhythm going.
+        </p>
+      ) : (
+        <p className="rhythm">
+          This {kindLabel(slot)}'s pillar is <b>{pillar}</b>, so every idea below is a {pillar.toLowerCase()} idea.
+          {otherCampaigns.length > 0 && (
+            <>
+              {" "}
+              {otherCampaigns[0].m.event.title} is covered by {otherCampaigns.map(({ s }) => `${dayName(s.date)}'s ${kindLabel(s)}`).join(" and ")}.
+            </>
+          )}
+        </p>
+      )}
       {out.tasks.map((t) => (
         <p key={t} className="ym-task">⚑ {t}</p>
       ))}

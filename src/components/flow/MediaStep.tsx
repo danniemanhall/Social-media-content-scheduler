@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { lastUsedMap, suggestMedia, type IndexedMedia } from "../../lib/brandFit";
+import { lastUsedMap, suggestForShots, suggestMedia, type IndexedMedia, type Suggestion } from "../../lib/brandFit";
 import { brollPlan, BROLL_VIDEO_SHOT, brollVideoName } from "../../lib/broll";
 import { addLocalFile } from "../../lib/localMedia";
 import { isImage, isVideo } from "../../lib/reel";
@@ -55,15 +55,23 @@ export function MediaStep({ slot, cal, lib, save, next }: StepProps) {
   const fileInput = useRef<HTMLInputElement>(null);
   const grid = slot.format === "post" || slot.format === "carousel";
 
-  const ranked = useMemo(() => {
+  // One group of suggestions per ticked shot, so each shot gets photos that show it.
+  const shots = chosenShots(slot);
+  const groups = useMemo(() => {
     if (!lib.index?.items.length) return [];
-    const forShots = { ...slot, shots: chosenShots(slot), media: [] };
-    return suggestMedia(forShots, lib.index.items, lib.looks, lastUsedMap(cal.slots, slot.id), slot.date, 64, lib.tags);
+    const used = lastUsedMap(cal.slots, slot.id);
+    if (!shots.length) return [{ shot: "", items: suggestMedia({ ...slot, media: [] }, lib.index.items, lib.looks, used, slot.date, 64, lib.tags) }];
+    return suggestForShots({ ...slot, media: [] }, shots, lib.index.items, lib.looks, used, slot.date, lib.tags);
     // Rank once per idea and shot choice, so picking a photo doesn't reshuffle the rest.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lib.index, lib.tags, slot.ideaId, slot.title, slot.shotsChosen?.join(), slot.shots.join("|")]);
-  const pages = Math.max(1, Math.ceil(ranked.length / PAGE));
-  const shown = ranked.slice((page % pages) * PAGE, (page % pages) * PAGE + PAGE);
+  const perGroup = groups.length <= 1 ? PAGE : groups.length <= 3 ? 3 : 2;
+  const pages = Math.max(1, ...groups.map((g) => Math.ceil(g.items.length / perGroup)));
+  const pageOf = (items: Suggestion[]) => {
+    const n = Math.max(1, Math.ceil(items.length / perGroup));
+    const p = page % n;
+    return items.slice(p * perGroup, p * perGroup + perGroup);
+  };
 
   const setMedia = (media: MediaRef[]) => {
     // A grid post with more than one photo becomes a carousel, and back.
@@ -94,13 +102,17 @@ export function MediaStep({ slot, cal, lib, save, next }: StepProps) {
     <div className="flow-card">
       <h3>Suggested media</h3>
       <p className="hint">
-        Picked for {chosenShots(slot).length ? `the shots you ticked` : "the idea"}. Tap to use one; {slot.format === "story" ? "each photo is one story frame" : grid ? "more than one makes a carousel" : "photos become shots in the reel"}.
+        {shots.length ? `Grouped by the ${shots.length === 1 ? "shot" : `${shots.length} shots`} you ticked, so each one gets photos that show it.` : "Picked for the idea."} Tap to use one; {slot.format === "story" ? "each photo is one story frame" : grid ? "more than one makes a carousel" : "photos become shots in the reel"}.
       </p>
       {!lib.index ? (
         <p className="hint">Suggestions appear once the media folders have been scanned (Media tab, Scan folders).</p>
       ) : (
+        groups.map((g) => (
+          <div key={g.shot} className="shot-group">
+            {g.shot && <h4>For: {g.shot}</h4>}
+            {g.shot && !g.items.length && <p className="hint">Nothing in the media folders looks like this shot yet. It may need to be photographed.</p>}
         <div className="suggest-row">
-          {shown.map((s) => (
+          {pageOf(g.items).map((s) => (
             <button key={s.media.id} type="button" className={`suggest-item pick ${has(s.media.id) ? "on" : ""}`} onClick={() => toggle(strip(s.media))} aria-pressed={has(s.media.id)}>
               <Thumb media={s.media} className="img" />
               <span className="name">{s.media.name.replace(/\.[a-z0-9]+$/i, "")}</span>
@@ -110,9 +122,11 @@ export function MediaStep({ slot, cal, lib, save, next }: StepProps) {
             </button>
           ))}
         </div>
+          </div>
+        ))
       )}
       <div className="flow-nav">
-        {ranked.length > PAGE && (
+        {pages > 1 && (
           <button type="button" className="btn" onClick={() => setPage((p) => p + 1)}>
             Suggest different media
           </button>
