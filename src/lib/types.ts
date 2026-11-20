@@ -111,6 +111,8 @@ export interface Slot {
   stillMedia?: MediaRef[];
   /** Caption options Claude wrote for this post when asked, to pick from in the flow. */
   captionOptions?: string[];
+  /** A note for the content creator, shown on this post's card in the month brief. */
+  briefNote?: string;
 }
 
 /**

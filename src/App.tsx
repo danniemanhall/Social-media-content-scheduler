@@ -8,16 +8,18 @@ import { CalendarScreen } from "./screens/CalendarScreen";
 import { MediaLibrary } from "./screens/MediaLibrary";
 import { Overview } from "./screens/Overview";
 import { YearScreen } from "./screens/YearScreen";
+import { BriefScreen } from "./screens/BriefScreen";
 import { useEvents } from "./lib/useEvents";
 import { PostFlow } from "./components/flow/PostFlow";
 import { HandPostReminders } from "./components/HandPostReminders";
 import type { Slot } from "./lib/types";
 
-type Tab = "overview" | "year" | "calendar" | "media" | "brand";
+type Tab = "overview" | "year" | "calendar" | "brief" | "media" | "brand";
 const TABS: { id: Tab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "year", label: "Year ahead" },
   { id: "calendar", label: "Calendar" },
+  { id: "brief", label: "Creator brief" },
   { id: "media", label: "Media" },
   { id: "brand", label: "Brand & ideas" },
 ];
@@ -86,6 +88,7 @@ function Shell({ store, email }: { store: Store; email: string | null }) {
         {tab === "overview" && <Overview cal={cal} events={ev.visible} onOpen={open} onYear={() => setTab("year")} />}
         {tab === "year" && <YearScreen cal={cal} ev={ev} store={store} onOpen={open} />}
         {tab === "calendar" && <CalendarScreen cal={cal} ev={ev} onOpen={open} />}
+        {tab === "brief" && <BriefScreen cal={cal} store={store} />}
         {tab === "media" && <MediaLibrary lib={lib} />}
         {tab === "brand" && <BrandScreen ideas={cal.ideas} lib={lib} />}
       </main>

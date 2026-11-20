@@ -14,6 +14,7 @@ import {
   listDesigns,
   startExport,
 } from "../../server/canva";
+import { briefLink } from "../../server/brief";
 
 interface Env {
   DB: D1Database;
@@ -160,6 +161,10 @@ export const onRequest: PagesFunction<Env> = async ({ request, env, params }) =>
     }
     const job = route.match(/^canva\/export\/([\w-]{1,80})$/);
     if (job && request.method === "GET") return json(await exportStatus(env, job[1]));
+
+    // The creator's month brief link (team only: /api sits behind the team's Access policy).
+    if (route === "brief-link" && request.method === "GET") return json(await briefLink(env, user || null));
+    if (route === "brief-link/reset" && request.method === "POST") return json(await briefLink(env, user || null, true));
 
     if (route === "slots" && request.method === "GET") {
       const from = url.searchParams.get("from") ?? "";
